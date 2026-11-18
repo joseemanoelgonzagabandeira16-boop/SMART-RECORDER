@@ -77,6 +77,7 @@ class RegionOverlayService : Service() {
         private val handle = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF42D6B5.toInt(); style = Paint.Style.FILL }
         private var left = 0f; private var top = 0f; private var right = 0f; private var bottom = 0f
         private var downX = 0f; private var downY = 0f; private var resizing = false
+        private val minRegionSizePx = 80f * resources.displayMetrics.density
         private val prefs by lazy { getSharedPreferences("smart_recorder_crop", Context.MODE_PRIVATE) }
 
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -104,8 +105,14 @@ class RegionOverlayService : Service() {
                 MotionEvent.ACTION_MOVE -> {
                     val dx = event.x - downX; val dy = event.y - downY
                     if (resizing) {
-                        right = (right + dx).coerceIn(left + 80f, width.toFloat())
-                        bottom = (bottom + dy).coerceIn(top + 80f, height.toFloat())
+                        right = (right + dx).coerceIn(
+                            (left + minRegionSizePx).coerceAtMost(width.toFloat()),
+                            width.toFloat()
+                        )
+                        bottom = (bottom + dy).coerceIn(
+                            (top + minRegionSizePx).coerceAtMost(height.toFloat()),
+                            height.toFloat()
+                        )
                     } else {
                         val rw = right - left; val rh = bottom - top
                         left = (left + dx).coerceIn(0f, width - rw); top = (top + dy).coerceIn(0f, height - rh)
@@ -122,14 +129,22 @@ class RegionOverlayService : Service() {
             val metrics = DisplayMetrics()
             @Suppress("DEPRECATION")
             windowManager?.defaultDisplay?.getRealMetrics(metrics)
-            val sw = max(1, metrics.widthPixels).toFloat()
-            val sh = max(1, metrics.heightPixels).toFloat()
-            val normalizedX = (left / width.coerceAtLeast(1)).coerceIn(0f, 0.95f)
-            val normalizedY = (top / height.coerceAtLeast(1)).coerceIn(0f, 0.95f)
-            val normalizedWidth = ((right - left) / width.coerceAtLeast(1))
-                .coerceIn(0.05f, 1f - normalizedX)
-            val normalizedHeight = ((bottom - top) / height.coerceAtLeast(1))
-                .coerceIn(0.05f, 1f - normalizedY)
+            val screenWidth = max(1, metrics.widthPixels).toFloat()
+            val screenHeight = max(1, metrics.heightPixels).toFloat()
+            // Converte a seleção usando a posição real da View na tela. Isso evita
+            // deslocamentos quando o Android inclui barras do sistema ou recortes.
+            val screenLocation = IntArray(2)
+            getLocationOnScreen(screenLocation)
+            val absoluteLeft = (screenLocation[0] + left).coerceIn(0f, screenWidth)
+            val absoluteTop = (screenLocation[1] + top).coerceIn(0f, screenHeight)
+            val absoluteRight = (screenLocation[0] + right).coerceIn(absoluteLeft, screenWidth)
+            val absoluteBottom = (screenLocation[1] + bottom).coerceIn(absoluteTop, screenHeight)
+            val normalizedX = (absoluteLeft / screenWidth).coerceIn(0f, 1f)
+            val normalizedY = (absoluteTop / screenHeight).coerceIn(0f, 1f)
+            val normalizedWidth = ((absoluteRight - absoluteLeft) / screenWidth)
+                .coerceIn(0.01f, 1f - normalizedX)
+            val normalizedHeight = ((absoluteBottom - absoluteTop) / screenHeight)
+                .coerceIn(0.01f, 1f - normalizedY)
 
             // Mantém a seleção flutuante e a seleção da tela principal sincronizadas.
             // A captura consome as chaves overlay_*; a interface usa webcam_*.
