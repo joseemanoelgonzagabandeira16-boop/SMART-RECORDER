@@ -332,7 +332,6 @@ class ScreenCaptureService : Service() {
             (webcamTop + squareHeight / 2f - verticalTop) / verticalHeight
         ).coerceIn(0f, 1f)
         val overlayWidth = (squareWidth / verticalWidth).coerceIn(0.04f, 1f)
-        val overlayHeight = (squareHeight / verticalHeight).coerceIn(0.04f, 1f)
 
         currentExportOutput = combinedFile
         isCombinedExport = true
