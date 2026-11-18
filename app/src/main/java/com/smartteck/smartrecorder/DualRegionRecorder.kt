@@ -63,6 +63,7 @@ internal class DualRegionRecorder(
     private var cropLocation = -1
     private var textureLocation = -1
     private var started = false
+    private var prepared = false
     @Volatile private var renderFailure: Throwable? = null
 
     val projectionSurface: Surface
@@ -135,6 +136,8 @@ internal class DualRegionRecorder(
             }, glHandler)
         }
         projectionInput = Surface(textureSurface)
+        EGL14.eglMakeCurrent(eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
+        prepared = true
     }
 
     private val mainRecorderWidth = outputWidth(mainWidth, mainHeight)
@@ -211,10 +214,11 @@ internal class DualRegionRecorder(
         webcamRecorder.reset()
         webcamRecorder.release()
         started = false
+        prepared = false
     }
 
     fun release() {
-        if (started) stop() else {
+        if (started || prepared) stop() else {
             try { projectionInput?.release() } catch (_: Exception) {}
             try { textureSurface?.release() } catch (_: Exception) {}
             try { mainRecorder.release() } catch (_: Exception) {}
