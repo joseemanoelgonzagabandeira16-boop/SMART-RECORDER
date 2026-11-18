@@ -295,7 +295,7 @@ private fun CaptureScreen() {
                     OutputTile("9:16", "Vídeo vertical", Modifier.weight(1f))
                     OutputTile("1:1", "Área da webcam", Modifier.weight(1f))
                 }
-                Text("Ao parar a captura, o app processa localmente dois arquivos: um recorte vertical 9:16 centralizado na webcam e outro recorte quadrado 1:1 da área selecionada.",
+                Text("Ao parar a captura, o app gera automaticamente o vídeo vertical 9:16, a webcam quadrada 1:1 e um terceiro MP4 com a webcam sobreposta na posição e no tamanho selecionados.",
                     color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
             }
         }
@@ -401,6 +401,7 @@ private fun VideosScreen() {
                     val label = when {
                         file.name.endsWith("_9x16.mp4", ignoreCase = true) -> "VÍDEO VERTICAL 9:16"
                         file.name.endsWith("_webcam_1x1.mp4", ignoreCase = true) -> "WEBCAM QUADRADA 1:1"
+                        file.name.endsWith("_combined.mp4", ignoreCase = true) -> "VÍDEO COMBINADO 9:16"
                         else -> "GRAVAÇÃO ORIGINAL"
                     }
                     Card(
