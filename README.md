@@ -5,12 +5,12 @@ Aplicativo Android nativo para transformar uma transmissão exibida no aparelho 
 ## Captura atual
 - Interface Android em Kotlin + Jetpack Compose.
 - Dois seletores independentes sobre uma referência 16:9:
-  - azul: região principal vertical 9:16;
-  - verde: região da webcam.
+  - azul: região principal vertical 9:16, centralizada por padrão e reposicionável;
+  - verde: região quadrada da webcam, reposicionável e com tamanho ajustável.
 - O MediaProjection entrega os quadros à memória como textura. Um pipeline OpenGL recorta a textura e envia cada região diretamente para uma superfície de codificação independente.
 - Não é criado nem salvo um arquivo de vídeo da tela inteira.
 - O app gera três arquivos MP4: vídeo vertical, webcam separada e composição final com webcam sobreposta.
-- O vídeo principal pode incluir o áudio captado pelo microfone do aparelho, se a permissão for concedida. O áudio interno do YouTube não é capturado por esta versão.
+- O vídeo principal inclui áudio captado pelo microfone do aparelho, se a permissão for concedida. Esta versão não captura diretamente o áudio interno do YouTube.
 - Os arquivos ficam inicialmente na pasta privada de vídeos do aplicativo e são copiados para Filmes/SMART RECORDER em Android 10 ou superior.
 - Telas separadas para Captura, Vídeos e Ajustes.
 - Compartilhamento por FileProvider.
@@ -24,4 +24,4 @@ Aplicativo Android nativo para transformar uma transmissão exibida no aparelho 
 - A captura usa a textura integral apenas como entrada temporária em memória; os arquivos codificados contêm exclusivamente as duas regiões selecionadas.
 
 ## Compilação e testes
-O workflow GitHub Actions executa `assembleDebug`, instala o APK em um emulador Android e realiza um teste básico de inicialização.
+O workflow GitHub Actions executa `clean assembleDebug` e publica o APK Debug como artefato. Não executa testes em emulador; a validação de funcionamento no aparelho fica para o usuário.
