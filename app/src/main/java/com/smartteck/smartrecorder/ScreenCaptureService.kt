@@ -370,7 +370,9 @@ class ScreenCaptureService : Service() {
                             centerXInVertical * 2f - 1f,
                             1f - centerYInVertical * 2f
                         )
-                        .setScale(overlayWidth, overlayHeight)
+                        // The compositor already compensates for the square overlay's aspect ratio.
+                        // Use the same scale on both axes to keep the webcam square.
+                        .setScale(overlayWidth, overlayWidth)
                         .build()
                 }
             }
