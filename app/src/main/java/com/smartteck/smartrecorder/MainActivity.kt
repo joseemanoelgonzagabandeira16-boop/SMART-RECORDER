@@ -123,13 +123,15 @@ private fun CaptureScreen() {
     val cropPreferences = remember(context) {
         context.getSharedPreferences("smart_recorder_crop", android.content.Context.MODE_PRIVATE)
     }
-    var webcamWidth by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("webcam_width", cropPreferences.getFloat("webcam_size", 0.31f) * 9f / 16f).coerceIn(0.05f, 0.95f)) }
-    var webcamHeight by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("webcam_height", cropPreferences.getFloat("webcam_size", 0.31f)).coerceIn(0.05f, 0.95f)) }
+    var webcamHeight by remember(cropPreferences) {
+        mutableFloatStateOf(cropPreferences.getFloat("webcam_height", cropPreferences.getFloat("webcam_size", 0.31f)).coerceIn(0.08f, 0.8f))
+    }
+    val webcamWidth = webcamHeight * 9f / 16f
     val timingPreferences = remember(context) { context.getSharedPreferences("smart_recorder_timing", android.content.Context.MODE_PRIVATE) }
     var recordingMinutes by remember(timingPreferences) { mutableFloatStateOf(timingPreferences.getInt("recording_minutes", 10).toFloat().coerceIn(1f, 240f)) }
     val mainCropWidth = 0.31640625f
     var mainX by remember(cropPreferences) {
-        mutableFloatStateOf(cropPreferences.getFloat("main_x", 0.5f).coerceIn(0f, 1f - mainCropWidth))
+        mutableFloatStateOf(cropPreferences.getFloat("main_x", 0.3418f).coerceIn(0f, 1f - mainCropWidth))
     }
     var webcamX by remember(cropPreferences) {
         mutableFloatStateOf(cropPreferences.getFloat("webcam_x", 0.58f).coerceIn(0f, 1f - webcamWidth))
@@ -280,18 +282,18 @@ private fun CaptureScreen() {
                 PreviewSelector(mainX, webcamX, webcamY, webcamWidth, webcamHeight,
                     onMainChange = { x -> mainX = x; regionSaved = false },
                     onWebcamChange = { x, y, w, h ->
-                        webcamX = x; webcamY = y; webcamWidth = w; webcamHeight = h; regionSaved = false
+                        webcamX = x; webcamY = y; webcamHeight = h; regionSaved = false
                     })
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Largura da região", color = TextMuted, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                    Text("${(webcamWidth * 100).toInt()}%", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-                Slider(value = webcamWidth, onValueChange = { webcamWidth = it.coerceIn(0.05f, 0.95f); webcamX = webcamX.coerceIn(0f, 1f - webcamWidth); regionSaved = false }, valueRange = 0.05f..0.95f)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Altura da região", color = TextMuted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    Text("Tamanho do quadrado da webcam", color = TextMuted, fontSize = 12.sp, modifier = Modifier.weight(1f))
                     Text("${(webcamHeight * 100).toInt()}%", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
-                Slider(value = webcamHeight, onValueChange = { webcamHeight = it.coerceIn(0.05f, 0.95f); webcamY = webcamY.coerceIn(0f, 1f - webcamHeight); regionSaved = false }, valueRange = 0.05f..0.95f)
+                Slider(value = webcamHeight, onValueChange = {
+                    webcamHeight = it.coerceIn(0.08f, 0.8f)
+                    webcamX = webcamX.coerceIn(0f, 1f - webcamHeight * 9f / 16f)
+                    webcamY = webcamY.coerceIn(0f, 1f - webcamHeight)
+                    regionSaved = false
+                }, valueRange = 0.08f..0.8f)
                 OutlinedButton(onClick = {
                     cropPreferences.edit()
                         .putFloat("main_x", mainX)
@@ -299,7 +301,7 @@ private fun CaptureScreen() {
                         .putFloat("webcam_y", webcamY)
                         .putFloat("webcam_width", webcamWidth)
                         .putFloat("webcam_height", webcamHeight)
-                        .putFloat("webcam_size", minOf(webcamWidth, webcamHeight))
+                        .putFloat("webcam_size", webcamHeight)
                         .apply()
                     regionSaved = true
                 }, modifier = Modifier.fillMaxWidth().height(46.dp),
