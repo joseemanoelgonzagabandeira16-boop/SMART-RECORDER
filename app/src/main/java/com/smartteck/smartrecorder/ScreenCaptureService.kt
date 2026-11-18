@@ -181,10 +181,9 @@ class ScreenCaptureService : Service() {
             val aspect = if (captureWidth > 0 && captureHeight > 0) {
                 captureWidth.toFloat() / captureHeight.toFloat()
             } else 16f / 9f
-            val verticalWidthFraction = (9f / 16f) / aspect
-            val centerX = cropX + cropSize / 2f
-            val leftFraction = (centerX - verticalWidthFraction / 2f)
-                .coerceIn(0f, 1f - verticalWidthFraction)
+            val verticalWidthFraction = ((9f / 16f) / aspect).coerceIn(0.05f, 1f)
+            val centerX = (cropX + cropSize / 2f).coerceIn(verticalWidthFraction / 2f, 1f - verticalWidthFraction / 2f)
+            val leftFraction = centerX - verticalWidthFraction / 2f
             crop = Crop(
                 2f * leftFraction - 1f,
                 2f * (leftFraction + verticalWidthFraction) - 1f,
