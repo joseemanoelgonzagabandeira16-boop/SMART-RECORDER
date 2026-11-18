@@ -346,19 +346,24 @@ class ScreenCaptureService : Service() {
                 MediaItem.fromUri(Uri.fromFile(webcamFile))
             ).setRemoveAudio(true).build()
 
-            val mainSequence = EditedMediaItemSequence.Builder(mainItem).build()
+            // Media3 draws the first sequence on top of the later sequences.
+            // Put the square webcam first (foreground) and the vertical video second (background).
             val webcamSequence = EditedMediaItemSequence.Builder(webcamItem).build()
+            val mainSequence = EditedMediaItemSequence.Builder(mainItem).build()
 
             val compositorSettings = object : VideoCompositorSettings {
                 override fun getOutputSize(inputSizes: List<Size>): Size {
-                    return inputSizes.firstOrNull() ?: Size(captureWidth.coerceAtLeast(2), captureHeight.coerceAtLeast(2))
+                    // The second input is the vertical background and defines the final 9:16 size.
+                    return inputSizes.getOrNull(1)
+                        ?: Size(captureWidth.coerceAtLeast(2), captureHeight.coerceAtLeast(2))
                 }
 
                 override fun getOverlaySettings(
                     inputId: Int,
                     presentationTimeUs: Long
                 ): OverlaySettings {
-                    if (inputId == 0) return OverlaySettings.Builder().build()
+                    // Input 0 is the webcam foreground; input 1 is the full-frame vertical background.
+                    if (inputId != 0) return OverlaySettings.Builder().build()
                     return OverlaySettings.Builder()
                         .setOverlayFrameAnchor(0f, 0f)
                         .setBackgroundFrameAnchor(
@@ -370,7 +375,7 @@ class ScreenCaptureService : Service() {
                 }
             }
 
-            val composition = Composition.Builder(mainSequence, webcamSequence)
+            val composition = Composition.Builder(webcamSequence, mainSequence)
                 .setVideoCompositorSettings(compositorSettings)
                 .build()
 
