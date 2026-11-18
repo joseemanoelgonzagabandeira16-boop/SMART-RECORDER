@@ -152,10 +152,17 @@ class ScreenCaptureService : Service() {
             check(captureWidth > captureHeight) {
                 "A tela capturada está em retrato. Coloque o YouTube em modo horizontal e inicie novamente."
             }
-            mainWidth = mainWidth.coerceAtMost(1f - mainX)
-            mainHeight = mainHeight.coerceAtMost(1f - mainY)
-            webcamWidth = webcamWidth.coerceAtMost(1f - webcamX)
-            webcamHeight = webcamHeight.coerceAtMost(1f - webcamY)
+            // Keep the exact selected width and height. If a saved position
+            // would place a rectangle outside the source, move the rectangle
+            // inward instead of silently shrinking the user's crop.
+            mainWidth = mainWidth.coerceIn(0.01f, 1f)
+            mainHeight = mainHeight.coerceIn(0.01f, 1f)
+            mainX = mainX.coerceIn(0f, 1f - mainWidth)
+            mainY = mainY.coerceIn(0f, 1f - mainHeight)
+            webcamWidth = webcamWidth.coerceIn(0.01f, 1f)
+            webcamHeight = webcamHeight.coerceIn(0.01f, 1f)
+            webcamX = webcamX.coerceIn(0f, 1f - webcamWidth)
+            webcamY = webcamY.coerceIn(0f, 1f - webcamHeight)
 
             val directory = getExternalFilesDir(Environment.DIRECTORY_MOVIES)
                 ?: error("Pasta de vídeos indisponível.")
