@@ -125,11 +125,13 @@ internal class DualRegionRecorder(
             setDefaultBufferSize(sourceWidth, sourceHeight)
             setOnFrameAvailableListener({ st ->
                 try {
+                    makeCurrent(mainEglSurface)
                     st.updateTexImage()
                     val matrix = FloatArray(16)
                     st.getTransformMatrix(matrix)
-                    draw(mainEglSurface, mainRecorderWidth, mainRecorderHeight, mainX, mainY, mainWidth, mainHeight, matrix)
-                    draw(webcamEglSurface, webcamRecorderWidth, webcamRecorderHeight, webcamX, webcamY, webcamWidth, webcamHeight, matrix)
+                    val frameTimestamp = st.timestamp
+                    draw(mainEglSurface, mainRecorderWidth, mainRecorderHeight, mainX, mainY, mainWidth, mainHeight, matrix, frameTimestamp)
+                    draw(webcamEglSurface, webcamRecorderWidth, webcamRecorderHeight, webcamX, webcamY, webcamWidth, webcamHeight, matrix, frameTimestamp)
                 } catch (failure: Throwable) {
                     renderFailure = failure
                 }
@@ -159,7 +161,8 @@ internal class DualRegionRecorder(
         y: Float,
         w: Float,
         h: Float,
-        matrix: FloatArray
+        matrix: FloatArray,
+        frameTimestamp: Long
     ) {
         makeCurrent(eglSurface)
         GLES20.glViewport(0, 0, width, height)
@@ -176,7 +179,7 @@ internal class DualRegionRecorder(
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textureId)
         GLES20.glUniform1i(textureLocation, 0)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
-        EGLExt.eglPresentationTimeANDROID(eglDisplay, eglSurface, System.nanoTime())
+        EGLExt.eglPresentationTimeANDROID(eglDisplay, eglSurface, frameTimestamp)
         check(EGL14.eglSwapBuffers(eglDisplay, eglSurface)) { "Falha ao enviar quadro ao codificador." }
     }
 
