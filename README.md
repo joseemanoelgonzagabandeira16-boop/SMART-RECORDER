@@ -5,7 +5,7 @@ Aplicativo Android nativo para captura local de transmissões exibidas no aplica
 ## O que já está no projeto
 - Interface Android em Kotlin + Jetpack Compose.
 - Acesso ao aplicativo oficial do YouTube.
-- Seletor visual quadrado para posicionar e ajustar a região da webcam.
+- Seletor visual quadrado para posicionar e ajustar a região da webcam, com posição e tamanho salvos localmente no aparelho.
 - Telas separadas para Captura, Vídeos e Ajustes.
 - Fluxo de autorização MediaProjection do Android.
 - Serviço em primeiro plano para gravar a tela em MP4 enquanto o usuário usa outro aplicativo.
