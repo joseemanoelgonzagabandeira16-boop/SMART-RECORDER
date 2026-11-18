@@ -221,7 +221,7 @@ private fun CaptureScreen() {
                             Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Accent)
                         }
                     }
-                    Text("Abra a transmissão no aplicativo oficial do YouTube. O SMART RECORDER não usa um player intermediário.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
+                    Text("Abra a transmissão no YouTube. Quando o Android mostrar as opções de captura, escolha a janela do YouTube se essa opção estiver disponível; assim você evita gravar notificações e outras telas. A captura de janela depende da versão do Android.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
                     Button(onClick = {
                         val launchIntent = context.packageManager.getLaunchIntentForPackage("com.google.android.youtube")
                         if (launchIntent != null) context.startActivity(launchIntent)
@@ -344,7 +344,7 @@ private fun CaptureScreen() {
                     OutputTile("1:1", "Webcam", Modifier.weight(1f))
                     OutputTile("9:16+", "Combinado", Modifier.weight(1f))
                 }
-                Text("Ao finalizar, o app tenta exportar três arquivos MP4: vídeo vertical, webcam quadrada e vídeo vertical com a webcam sobreposta. Os arquivos ficam salvos neste aparelho.",
+                Text("Ao finalizar, o app exporta três arquivos MP4: vídeo vertical, recorte da webcam e vídeo vertical com a webcam sobreposta. No Android 10 ou superior, também tenta copiá-los para Filmes/SMART RECORDER na galeria.",
                     color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
             }
         }
