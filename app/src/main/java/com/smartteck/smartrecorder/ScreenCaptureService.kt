@@ -288,10 +288,12 @@ class ScreenCaptureService : Service() {
     private fun startCombinedExport(mainFile: File) {
         val webcamFile = webcamOutputFile ?: run { finishService(error = true); return }
         val combinedFile = combinedOutputFile ?: run { finishService(error = true); return }
-        val centerX = ((webcamX + webcamWidth / 2f - mainX) / mainWidth).coerceIn(0f, 1f)
-        val centerY = ((webcamY + webcamHeight / 2f - mainY) / mainHeight).coerceIn(0f, 1f)
-        val overlayWidth = (webcamWidth / mainWidth).coerceIn(0.02f, 1f)
-        val overlayHeight = (webcamHeight / mainHeight).coerceIn(0.02f, 1f)
+        // Keep the overlay's actual selected dimensions, even when it is
+        // larger than the vertical crop or partly outside its visible bounds.
+        val centerX = (webcamX + webcamWidth / 2f - mainX) / mainWidth
+        val centerY = (webcamY + webcamHeight / 2f - mainY) / mainHeight
+        val overlayWidth = (webcamWidth / mainWidth).coerceAtLeast(0.02f)
+        val overlayHeight = (webcamHeight / mainHeight).coerceAtLeast(0.02f)
 
         currentExportOutput = combinedFile
         updateNotice("Combinando as duas gravações...")
