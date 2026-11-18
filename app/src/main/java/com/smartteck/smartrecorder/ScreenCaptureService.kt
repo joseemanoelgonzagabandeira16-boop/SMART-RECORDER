@@ -23,6 +23,7 @@ import android.util.DisplayMetrics
 import android.view.WindowManager
 import androidx.media3.common.MediaItem
 import androidx.media3.effect.OverlaySettings
+import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.effect.VideoCompositorSettings
 import androidx.media3.common.util.Size
 import androidx.media3.effect.Crop
@@ -362,8 +363,8 @@ class ScreenCaptureService : Service() {
                     presentationTimeUs: Long
                 ): OverlaySettings {
                     // Input 0 is the webcam foreground; input 1 is the full-frame vertical background.
-                    if (inputId != 0) return OverlaySettings.Builder().build()
-                    return OverlaySettings.Builder()
+                    if (inputId != 0) return StaticOverlaySettings.Builder().build()
+                    return StaticOverlaySettings.Builder()
                         .setOverlayFrameAnchor(0f, 0f)
                         .setBackgroundFrameAnchor(
                             centerXInVertical * 2f - 1f,
