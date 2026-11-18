@@ -361,7 +361,7 @@ private fun CaptureScreen() {
                 Text("FORMATO DE SAÍDA", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutputTile("9:16", "Vertical", Modifier.weight(1f))
-                    OutputTile("1:1", "Webcam", Modifier.weight(1f))
+                    OutputTile("W×H", "Webcam", Modifier.weight(1f))
                     OutputTile("9:16+", "Combinado", Modifier.weight(1f))
                 }
                 Text("O app grava diretamente as duas regiões selecionadas e gera três MP4: vídeo vertical, webcam no tamanho escolhido e composição final. Não é criado arquivo de tela inteira.",
