@@ -1,18 +1,28 @@
 # SMART RECORDER
 
-Aplicativo Android nativo para captura e reenquadramento de transmissões abertas no aplicativo oficial do YouTube.
+Aplicativo Android nativo para captura local de transmissões exibidas no aplicativo oficial do YouTube.
 
-## Interface inicial
-- Painel de captura com acesso ao YouTube oficial.
-- Prévia visual com seleção quadrada da webcam, arrastável e com tamanho ajustável.
-- Formatos de saída apresentados: vertical 9:16 e webcam 1:1.
-- Áreas separadas para captura, vídeos e ajustes.
+## O que já está no projeto
+- Interface Android em Kotlin + Jetpack Compose.
+- Acesso ao aplicativo oficial do YouTube.
+- Seletor visual quadrado para posicionar e ajustar a região da webcam.
+- Telas separadas para Captura, Vídeos e Ajustes.
+- Fluxo de autorização MediaProjection do Android.
+- Serviço em primeiro plano para gravar a tela em MP4 enquanto o usuário usa outro aplicativo.
+- Arquivos de captura gravados na pasta privada de vídeos do SMART RECORDER.
 
-## Restrições do projeto
+## Restrições
 - Sem servidor/backend.
 - Sem APIs externas.
-- Sem plataformas intermediárias.
-- Processamento planejado no próprio dispositivo.
+- Sem player ou plataforma intermediária.
+- Processamento local no dispositivo.
 
-## Estado
-Versão inicial da interface. A captura real, composição das faixas de vídeo/áudio e processamento em segundo plano ainda precisam ser implementados e testados no Android.
+## Limitações desta etapa
+- A captura atual grava a tela inteira em um único MP4.
+- Esta primeira versão ainda não grava áudio.
+- O quadrado de webcam ainda é uma configuração visual; ele ainda não recorta a transmissão real.
+- A geração dos dois arquivos finais (vídeo 9:16 e webcam 1:1), a sincronização de áudio e a lista de vídeos ainda serão implementadas.
+- O Android sempre apresenta seu próprio diálogo de autorização para captura de tela; o aplicativo não pode ignorá-lo.
+
+## Compilação
+O workflow de GitHub Actions tenta gerar o APK de depuração em cada push para a branch principal.
