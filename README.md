@@ -4,9 +4,9 @@ Aplicativo Android nativo para transformar uma transmissão exibida no aparelho 
 
 ## Captura atual
 - Interface Android em Kotlin + Jetpack Compose.
-- Dois seletores independentes sobre uma referência 16:9:
+- Dois seletores independentes sobre uma referência horizontal que acompanha a proporção da tela:
   - azul: região principal vertical 9:16, centralizada por padrão e reposicionável;
-  - verde: região quadrada da webcam, reposicionável e com tamanho ajustável.
+  - verde: região retangular da webcam, reposicionável e com largura e altura ajustáveis independentemente.
 - O MediaProjection entrega os quadros à memória como textura. Um pipeline OpenGL recorta a textura e envia cada região diretamente para uma superfície de codificação independente.
 - Não é criado nem salvo um arquivo de vídeo da tela inteira.
 - O app gera três arquivos MP4: vídeo vertical, webcam separada e composição final com webcam sobreposta.
