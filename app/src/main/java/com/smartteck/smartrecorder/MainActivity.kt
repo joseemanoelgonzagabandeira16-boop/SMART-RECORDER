@@ -164,10 +164,16 @@ private fun CaptureScreen() {
         }
     }
 
-    val notificationPermission = rememberLauncherForActivityResult(
+    val microphonePermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) {
         capturePermission.launch(projectionManager.createScreenCaptureIntent())
+    }
+
+    val notificationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
     }
 
     LazyColumn(
@@ -235,7 +241,7 @@ private fun CaptureScreen() {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
                     Text("CAPTURA DA TELA", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
                     Text(if (captureRunning) "Captura em andamento" else "Pronto para capturar", color = TextMain, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                    Text("O Android solicitará sua autorização. Depois, volte ao YouTube para exibir a transmissão.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
+                    Text("O Android solicitará autorização para captura de tela e microfone. O áudio será captado pelo microfone do aparelho (som reproduzido no ambiente), não como áudio digital interno do YouTube.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
                     Button(
                         onClick = {
                             if (captureRunning) {
@@ -247,7 +253,7 @@ private fun CaptureScreen() {
                                 ) {
                                     notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                                 } else {
-                                    capturePermission.launch(projectionManager.createScreenCaptureIntent())
+                                    microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
                                 }
                             }
                         },
