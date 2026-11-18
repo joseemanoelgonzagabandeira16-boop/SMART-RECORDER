@@ -110,7 +110,14 @@ class ScreenCaptureService : Service() {
     private fun startForegroundCompat(text: String, showStop: Boolean) {
         val notice = notification(text, showStop)
         if (Build.VERSION.SDK_INT >= 29) {
-            startForeground(NOTIFICATION_ID, notice, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+            var foregroundTypes = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            if (Build.VERSION.SDK_INT >= 30 &&
+                checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+                    android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                foregroundTypes = foregroundTypes or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            }
+            startForeground(NOTIFICATION_ID, notice, foregroundTypes)
         } else {
             startForeground(NOTIFICATION_ID, notice)
         }
