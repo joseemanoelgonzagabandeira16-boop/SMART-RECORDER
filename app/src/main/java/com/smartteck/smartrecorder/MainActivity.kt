@@ -223,7 +223,7 @@ private fun CaptureScreen() {
                             Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Accent)
                         }
                     }
-                    Text("Abra a transmissão no YouTube. Quando o Android mostrar as opções de captura, escolha a janela do YouTube se essa opção estiver disponível; assim você evita gravar notificações e outras telas. A captura de janela depende da versão do Android.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
+                    Text("Mantenha o aparelho na horizontal para alinhar a referência 16:9. Abra a live no YouTube e, ao autorizar a captura, selecione a janela do YouTube se o Android oferecer essa opção.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
                     Button(onClick = {
                         val launchIntent = context.packageManager.getLaunchIntentForPackage("com.google.android.youtube")
                         if (launchIntent != null) context.startActivity(launchIntent)
