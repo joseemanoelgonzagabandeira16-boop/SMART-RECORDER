@@ -5,7 +5,9 @@ import android.net.Uri
 import android.media.projection.MediaProjectionManager
 import android.os.Environment
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.core.content.FileProvider
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
@@ -333,7 +335,28 @@ private fun VideosScreen() {
             }
         } else {
             captures.forEach { file ->
-                Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp)) {
+                Card(
+                    onClick = {
+                        try {
+                            val videoUri = FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                file
+                            )
+                            val playerIntent = Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(videoUri, "video/mp4")
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(playerIntent)
+                        } catch (_: android.content.ActivityNotFoundException) {
+                            Toast.makeText(context, "Nenhum reprodutor de vídeo encontrado.", Toast.LENGTH_LONG).show()
+                        } catch (_: IllegalArgumentException) {
+                            Toast.makeText(context, "Não foi possível abrir este arquivo.", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    colors = CardDefaults.cardColors(containerColor = Panel),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
                     Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = Accent, modifier = Modifier.size(30.dp))
                         Spacer(Modifier.width(12.dp))
