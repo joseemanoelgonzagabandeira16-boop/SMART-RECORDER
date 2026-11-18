@@ -69,6 +69,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -117,10 +118,22 @@ private fun SmartRecorderApp() {
 @Composable
 private fun CaptureScreen() {
     val context = LocalContext.current
-    var webcamX by remember { mutableFloatStateOf(0.58f) }
-    var webcamY by remember { mutableFloatStateOf(0.12f) }
-    var webcamSize by remember { mutableFloatStateOf(0.31f) }
-    var regionSaved by remember { mutableStateOf(false) }
+    val cropPreferences = remember(context) {
+        context.getSharedPreferences("smart_recorder_crop", android.content.Context.MODE_PRIVATE)
+    }
+    var webcamX by remember(cropPreferences) {
+        mutableFloatStateOf(cropPreferences.getFloat("webcam_x", 0.58f).coerceIn(0f, 0.80f))
+    }
+    var webcamY by remember(cropPreferences) {
+        mutableFloatStateOf(cropPreferences.getFloat("webcam_y", 0.12f).coerceIn(0f, 0.80f))
+    }
+    var webcamSize by remember(cropPreferences) {
+        mutableFloatStateOf(cropPreferences.getFloat("webcam_size", 0.31f).coerceIn(0.20f, 0.48f))
+    }
+    var regionSaved by remember(cropPreferences) {
+        mutableStateOf(cropPreferences.contains("webcam_x") &&
+            cropPreferences.contains("webcam_y") && cropPreferences.contains("webcam_size"))
+    }
     var captureRunning by remember { mutableStateOf(false) }
     val projectionManager = remember { context.getSystemService(android.content.Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager }
     val capturePermission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -249,9 +262,19 @@ private fun CaptureScreen() {
                     Text("${(webcamSize * 100).toInt()}%", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
                 Slider(value = webcamSize, onValueChange = {
-                    webcamSize = it.coerceIn(0.20f, 0.48f); regionSaved = false
+                    webcamSize = it.coerceIn(0.20f, 0.48f)
+                    webcamX = webcamX.coerceIn(0f, 1f - webcamSize)
+                    webcamY = webcamY.coerceIn(0f, 1f - webcamSize)
+                    regionSaved = false
                 }, valueRange = 0.20f..0.48f)
-                OutlinedButton(onClick = { regionSaved = true }, modifier = Modifier.fillMaxWidth().height(46.dp),
+                OutlinedButton(onClick = {
+                    cropPreferences.edit()
+                        .putFloat("webcam_x", webcamX)
+                        .putFloat("webcam_y", webcamY)
+                        .putFloat("webcam_size", webcamSize)
+                        .apply()
+                    regionSaved = true
+                }, modifier = Modifier.fillMaxWidth().height(46.dp),
                     shape = RoundedCornerShape(13.dp), border = BorderStroke(1.dp, if (regionSaved) Accent else Color(0xFF34445D))) {
                     Icon(Icons.Default.Tune, contentDescription = null, tint = if (regionSaved) Accent else TextMain)
                     Spacer(Modifier.width(8.dp))
@@ -279,6 +302,7 @@ private fun PreviewSelector(webcamX: Float, webcamY: Float, webcamSize: Float, o
     val currentWebcamX by rememberUpdatedState(webcamX)
     val currentWebcamY by rememberUpdatedState(webcamY)
     val currentOnPositionChange by rememberUpdatedState(onPositionChange)
+    val density = LocalDensity.current
     BoxWithConstraints(
         modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(18.dp))
             .background(Brush.linearGradient(listOf(Color(0xFF17243A), Color(0xFF080D18))))
@@ -292,14 +316,14 @@ private fun PreviewSelector(webcamX: Float, webcamY: Float, webcamSize: Float, o
         }
         Box(
             modifier = Modifier.offset(x = maxWidth * webcamX, y = maxHeight * webcamY)
-                .size(width = maxWidth * webcamSize, height = maxHeight * webcamSize)
+                .size(maxWidth * webcamSize)
                 .border(2.dp, Accent, RoundedCornerShape(8.dp))
                 .background(Color(0x553ED8B5))
                 .pointerInput(maxWidth, maxHeight, webcamSize) {
                     detectDragGestures { change, dragAmount ->
                         change.consume()
-                        val parentWidth = size.width / webcamSize
-                        val parentHeight = size.height / webcamSize
+                        val parentWidth = with(density) { maxWidth.toPx() }
+                        val parentHeight = with(density) { maxHeight.toPx() }
                         val nextX = (currentWebcamX + dragAmount.x / parentWidth).coerceIn(0f, 1f - webcamSize)
                         val nextY = (currentWebcamY + dragAmount.y / parentHeight).coerceIn(0f, 1f - webcamSize)
                         currentOnPositionChange(nextX, nextY)
