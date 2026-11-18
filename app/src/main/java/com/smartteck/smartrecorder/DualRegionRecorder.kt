@@ -64,6 +64,8 @@ internal class DualRegionRecorder(
     private var textureLocation = -1
     private var started = false
     private var prepared = false
+    private val vertexBuffer = floatBuffer(floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f))
+    private val textureBuffer = floatBuffer(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f))
     @Volatile private var renderFailure: Throwable? = null
 
     val projectionSurface: Surface
@@ -167,12 +169,12 @@ internal class DualRegionRecorder(
         makeCurrent(eglSurface)
         GLES20.glViewport(0, 0, width, height)
         GLES20.glUseProgram(program)
-        val positions = floatBuffer(floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f))
-        val texCoords = floatBuffer(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f))
+        vertexBuffer.position(0)
+        textureBuffer.position(0)
         GLES20.glEnableVertexAttribArray(positionLocation)
-        GLES20.glVertexAttribPointer(positionLocation, 2, GLES20.GL_FLOAT, false, 0, positions)
+        GLES20.glVertexAttribPointer(positionLocation, 2, GLES20.GL_FLOAT, false, 0, vertexBuffer)
         GLES20.glEnableVertexAttribArray(texCoordLocation)
-        GLES20.glVertexAttribPointer(texCoordLocation, 2, GLES20.GL_FLOAT, false, 0, texCoords)
+        GLES20.glVertexAttribPointer(texCoordLocation, 2, GLES20.GL_FLOAT, false, 0, textureBuffer)
         GLES20.glUniformMatrix4fv(matrixLocation, 1, false, matrix, 0)
         GLES20.glUniform4f(cropLocation, x, y, x + w, y + h)
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
