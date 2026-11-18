@@ -46,7 +46,7 @@ jobs:
           profile: pixel_2
           emulator-boot-timeout: 600
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
-          disable-animations: true
+          disable-animations: false
           script: |
             set -e
             adb start-server
