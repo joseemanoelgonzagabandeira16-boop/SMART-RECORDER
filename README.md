@@ -9,6 +9,7 @@ Aplicativo Android nativo para captura local de transmissões exibidas no aplica
 - Telas separadas para Captura, Vídeos e Ajustes.
 - Fluxo de autorização MediaProjection do Android.
 - Serviço em primeiro plano para gravar a tela em MP4 enquanto o usuário usa outro aplicativo.
+- Tela de vídeos lista as capturas MP4 locais.
 - Arquivos de captura gravados na pasta privada de vídeos do SMART RECORDER.
 
 ## Restrições
