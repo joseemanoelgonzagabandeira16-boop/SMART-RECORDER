@@ -205,8 +205,13 @@ class ScreenCaptureService : Service() {
             webcamOutputFile?.delete()
             stopForeground(STOP_FOREGROUND_REMOVE)
             showResultNotification("Falha ao iniciar a captura dupla: ${failure.message ?: "verifique as permissões e tente novamente."}")
+            sendCaptureFinished()
             stopSelf()
         }
+    }
+
+    private fun sendCaptureFinished() {
+        sendBroadcast(Intent(ACTION_CAPTURE_FINISHED).setPackage(packageName))
     }
 
     private fun acquireRecordingWakeLock() {
@@ -252,6 +257,7 @@ class ScreenCaptureService : Service() {
     private fun finishCapture(projectionAlreadyStopped: Boolean = false) {
         if (isFinalizing) return
         isFinalizing = true
+        sendCaptureFinished()
         autoStopTask?.let { captureHandler.removeCallbacks(it) }
         autoStopTask = null
         try { virtualDisplay?.release() } catch (_: Exception) {}
@@ -427,6 +433,7 @@ class ScreenCaptureService : Service() {
     companion object {
         const val ACTION_START = "com.smartteck.smartrecorder.action.START_CAPTURE"
         const val ACTION_STOP = "com.smartteck.smartrecorder.action.STOP_CAPTURE"
+        const val ACTION_CAPTURE_FINISHED = "com.smartteck.smartrecorder.action.CAPTURE_FINISHED"
         const val EXTRA_RESULT_CODE = "capture_result_code"
         const val EXTRA_RESULT_DATA = "capture_result_data"
         const val EXTRA_MAIN_X = "main_crop_x"
