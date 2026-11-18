@@ -147,10 +147,16 @@ private fun CaptureScreen() {
                 action = ScreenCaptureService.ACTION_START
                 putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
                 putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data)
-                putExtra(ScreenCaptureService.EXTRA_CROP_X, webcamX)
-                putExtra(ScreenCaptureService.EXTRA_CROP_Y, webcamY)
-                putExtra(ScreenCaptureService.EXTRA_CROP_WIDTH, webcamWidth)
-                putExtra(ScreenCaptureService.EXTRA_CROP_HEIGHT, webcamHeight)
+                val overlayRegion = context.getSharedPreferences("smart_recorder_crop", android.content.Context.MODE_PRIVATE)
+                val useOverlayRegion = overlayRegion.getBoolean("overlay_region_active", false)
+                putExtra(ScreenCaptureService.EXTRA_CROP_X,
+                    if (useOverlayRegion) overlayRegion.getFloat("overlay_x", webcamX) else webcamX)
+                putExtra(ScreenCaptureService.EXTRA_CROP_Y,
+                    if (useOverlayRegion) overlayRegion.getFloat("overlay_y", webcamY) else webcamY)
+                putExtra(ScreenCaptureService.EXTRA_CROP_WIDTH,
+                    if (useOverlayRegion) overlayRegion.getFloat("overlay_width", webcamWidth) else webcamWidth)
+                putExtra(ScreenCaptureService.EXTRA_CROP_HEIGHT,
+                    if (useOverlayRegion) overlayRegion.getFloat("overlay_height", webcamHeight) else webcamHeight)
                 putExtra(ScreenCaptureService.EXTRA_DURATION_MS, recordingMinutes.toLong() * 60_000L)
             }
             context.startForegroundService(captureIntent)
