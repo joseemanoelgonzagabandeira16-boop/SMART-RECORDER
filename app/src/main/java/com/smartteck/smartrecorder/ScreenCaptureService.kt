@@ -91,25 +91,28 @@ class ScreenCaptureService : Service() {
             mediaRecorder.setVideoEncodingBitRate(8_000_000)
             mediaRecorder.setOutputFile(outputFile!!.absolutePath)
             mediaRecorder.prepare()
+            projection?.registerCallback(object : MediaProjection.Callback() {
+                override fun onStop() {
+                    stopCapture(stopProjection = false)
+                    stopSelf()
+                }
+            }, Handler(Looper.getMainLooper()))
             virtualDisplay = projection!!.createVirtualDisplay("SMART_RECORDER_DISPLAY", width, height,
                 metrics.densityDpi, DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                 mediaRecorder.surface, null, Handler(Looper.getMainLooper()))
             mediaRecorder.start()
-            projection?.registerCallback(object : MediaProjection.Callback() {
-                override fun onStop() { stopCapture(); stopSelf() }
-            }, Handler(Looper.getMainLooper()))
         } catch (_: Exception) {
             stopCapture()
             stopSelf()
         }
     }
 
-    private fun stopCapture() {
+    private fun stopCapture(stopProjection: Boolean = true) {
         try { recorder?.stop() } catch (_: RuntimeException) { outputFile?.delete() }
         try { virtualDisplay?.release() } catch (_: Exception) {}
         try { recorder?.reset() } catch (_: Exception) {}
         try { recorder?.release() } catch (_: Exception) {}
-        try { projection?.stop() } catch (_: Exception) {}
+        if (stopProjection) try { projection?.stop() } catch (_: Exception) {}
         virtualDisplay = null
         recorder = null
         projection = null
