@@ -71,6 +71,15 @@ class ScreenCaptureService : Service() {
                 cropWidth = intent.getFloatExtra(EXTRA_CROP_WIDTH, cropWidth).coerceIn(0.05f, 0.95f)
                 cropHeight = intent.getFloatExtra(EXTRA_CROP_HEIGHT, cropHeight).coerceIn(0.05f, 0.95f)
                 recordingDurationMs = intent.getLongExtra(EXTRA_DURATION_MS, 0L).coerceAtLeast(0L)
+                val regionPrefs = getSharedPreferences("smart_recorder_crop", Context.MODE_PRIVATE)
+                if (regionPrefs.getBoolean("overlay_region_active", false)) {
+                    cropX = regionPrefs.getFloat("overlay_x", cropX).coerceIn(0f, 0.95f)
+                    cropY = regionPrefs.getFloat("overlay_y", cropY).coerceIn(0f, 0.95f)
+                    cropWidth = regionPrefs.getFloat("overlay_width", cropWidth).coerceIn(0.05f, 1f)
+                    cropHeight = regionPrefs.getFloat("overlay_height", cropHeight).coerceIn(0.05f, 1f)
+                    regionPrefs.edit().putBoolean("overlay_region_active", false).apply()
+                }
+                stopService(Intent(this, RegionOverlayService::class.java))
                 startForegroundCompat("Captura de tela em andamento", showStop = true)
                 startCapture(intent)
             }
