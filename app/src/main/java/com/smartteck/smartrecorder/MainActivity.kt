@@ -1,13 +1,17 @@
 package com.smartteck.smartrecorder
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.media.projection.MediaProjectionManager
 import android.os.Environment
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.core.content.FileProvider
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
@@ -132,6 +136,12 @@ private fun CaptureScreen() {
         }
     }
 
+    val notificationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        capturePermission.launch(projectionManager.createScreenCaptureIntent())
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 24.dp),
@@ -204,7 +214,13 @@ private fun CaptureScreen() {
                                 context.startService(Intent(context, ScreenCaptureService::class.java).setAction(ScreenCaptureService.ACTION_STOP))
                                 captureRunning = false
                             } else {
-                                capturePermission.launch(projectionManager.createScreenCaptureIntent())
+                                if (Build.VERSION.SDK_INT >= 33 &&
+                                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                                ) {
+                                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                } else {
+                                    capturePermission.launch(projectionManager.createScreenCaptureIntent())
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
