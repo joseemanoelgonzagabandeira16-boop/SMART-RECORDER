@@ -221,15 +221,19 @@ class ScreenCaptureService : Service() {
             val bottomFraction: Float
             if (sourceAspect > targetAspect) {
                 val cropWidth = (targetAspect / sourceAspect).coerceIn(0.01f, 1f)
-                val centerX = (cropX + cropWidth / 2f).coerceIn(cropWidth / 2f, 1f - cropWidth / 2f)
+                // O enquadramento do vídeo principal é independente da moldura da webcam.
+                // Mantém o centro da live no eixo horizontal; a região da webcam só é usada
+                // para gerar o arquivo separado e posicioná-lo na composição final.
+                val centerX = 0.5f.coerceIn(cropWidth / 2f, 1f - cropWidth / 2f)
                 leftFraction = centerX - cropWidth / 2f
                 rightFraction = centerX + cropWidth / 2f
                 topFraction = 0f
                 bottomFraction = 1f
             } else {
                 val cropHeight = (sourceAspect / targetAspect).coerceIn(0.01f, 1f)
-                val selectedCenterY = cropY + cropHeight / 2f
-                val centerY = selectedCenterY.coerceIn(cropHeight / 2f, 1f - cropHeight / 2f)
+                // Em fontes muito estreitas, centraliza o recorte vertical sem
+                // permitir que a seleção da webcam desloque o vídeo principal.
+                val centerY = 0.5f.coerceIn(cropHeight / 2f, 1f - cropHeight / 2f)
                 leftFraction = 0f
                 rightFraction = 1f
                 topFraction = centerY - cropHeight / 2f
@@ -330,14 +334,13 @@ class ScreenCaptureService : Service() {
 
         if (sourceAspect > targetAspect) {
             verticalWidth = (targetAspect / sourceAspect).coerceIn(0.01f, 1f)
-            val centerX = (cropX + cropWidth / 2f)
-                .coerceIn(verticalWidth / 2f, 1f - verticalWidth / 2f)
+            // Reutiliza exatamente o enquadramento central usado no arquivo 9:16.
+            // Não usa a posição da webcam para decidir qual parte da live será mostrada.
+            val centerX = 0.5f.coerceIn(verticalWidth / 2f, 1f - verticalWidth / 2f)
             verticalLeft = centerX - verticalWidth / 2f
         } else {
             verticalHeight = (sourceAspect / targetAspect).coerceIn(0.01f, 1f)
-            val selectedCenterY = cropY + cropHeight / 2f
-            val centerY = selectedCenterY
-                .coerceIn(verticalHeight / 2f, 1f - verticalHeight / 2f)
+            val centerY = 0.5f.coerceIn(verticalHeight / 2f, 1f - verticalHeight / 2f)
             verticalTop = centerY - verticalHeight / 2f
         }
 
