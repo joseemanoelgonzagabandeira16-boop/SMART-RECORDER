@@ -49,7 +49,11 @@ class ScreenCaptureService : Service() {
     private var exportTransformer: Transformer? = null
     private var cropX = 0.58f
     private var cropY = 0.12f
-    private var cropSize = 0.31f
+    private var cropWidth = 0.31f
+    private var cropHeight = 0.31f
+    private var recordingDurationMs = 0L
+    private val captureHandler = Handler(Looper.getMainLooper())
+    private var autoStopTask: Runnable? = null
     private var exportStage = 0
     private var isCombinedExport = false
     private var isFinalizing = false
@@ -64,7 +68,9 @@ class ScreenCaptureService : Service() {
             ACTION_START -> {
                 cropX = intent.getFloatExtra(EXTRA_CROP_X, cropX).coerceIn(0f, 0.80f)
                 cropY = intent.getFloatExtra(EXTRA_CROP_Y, cropY).coerceIn(0f, 0.80f)
-                cropSize = intent.getFloatExtra(EXTRA_CROP_SIZE, cropSize).coerceIn(0.20f, 0.48f)
+                cropWidth = intent.getFloatExtra(EXTRA_CROP_WIDTH, cropWidth).coerceIn(0.05f, 0.95f)
+                cropHeight = intent.getFloatExtra(EXTRA_CROP_HEIGHT, cropHeight).coerceIn(0.05f, 0.95f)
+                recordingDurationMs = intent.getLongExtra(EXTRA_DURATION_MS, 0L).coerceAtLeast(0L)
                 startForegroundCompat("Captura de tela em andamento", showStop = true)
                 startCapture(intent)
             }
@@ -151,6 +157,10 @@ class ScreenCaptureService : Service() {
                 metrics.densityDpi, DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                 mediaRecorder.surface, null, Handler(Looper.getMainLooper()))
             mediaRecorder.start()
+            if (recordingDurationMs > 0L) {
+                autoStopTask = Runnable { finishCaptureAndExport() }
+                captureHandler.postDelayed(autoStopTask!!, recordingDurationMs)
+            }
         } catch (_: Exception) {
             outputFile?.delete()
             releaseCaptureResources(stopProjection = true)
@@ -163,6 +173,8 @@ class ScreenCaptureService : Service() {
     private fun finishCaptureAndExport(projectionAlreadyStopped: Boolean = false) {
         if (isFinalizing) return
         isFinalizing = true
+        autoStopTask?.let { captureHandler.removeCallbacks(it) }
+        autoStopTask = null
         try {
             recorder?.stop()
         } catch (_: RuntimeException) {
@@ -200,14 +212,14 @@ class ScreenCaptureService : Service() {
             val bottomFraction: Float
             if (sourceAspect > targetAspect) {
                 val cropWidth = (targetAspect / sourceAspect).coerceIn(0.01f, 1f)
-                val centerX = (cropX + cropSize / 2f).coerceIn(cropWidth / 2f, 1f - cropWidth / 2f)
+                val centerX = (cropX + cropWidth / 2f).coerceIn(cropWidth / 2f, 1f - cropWidth / 2f)
                 leftFraction = centerX - cropWidth / 2f
                 rightFraction = centerX + cropWidth / 2f
                 topFraction = 0f
                 bottomFraction = 1f
             } else {
                 val cropHeight = (sourceAspect / targetAspect).coerceIn(0.01f, 1f)
-                val selectedCenterY = cropY + (cropSize * sourceAspect) / 2f
+                val selectedCenterY = cropY + cropHeight / 2f
                 val centerY = selectedCenterY.coerceIn(cropHeight / 2f, 1f - cropHeight / 2f)
                 leftFraction = 0f
                 rightFraction = 1f
@@ -223,21 +235,21 @@ class ScreenCaptureService : Service() {
             output = File(directory, "${base}_9x16.mp4")
             updateNotice("Gerando vídeo vertical 9:16...")
         } else {
-            // Converte a seleção normalizada em um quadrado de pixels na resolução capturada.
-            val squareWidth = minOf(cropSize, 1f / sourceAspect).coerceAtLeast(0.01f)
-            val squareHeight = (squareWidth * sourceAspect).coerceIn(0.01f, 1f)
-            val leftFraction = cropX.coerceIn(0f, 1f - squareWidth)
-            val topFraction = cropY.coerceIn(0f, 1f - squareHeight)
-            val rightFraction = leftFraction + squareWidth
-            val bottomFraction = topFraction + squareHeight
+            // Usa exatamente o retângulo livre escolhido pelo usuário.
+            val selectedWidth = cropWidth.coerceIn(0.01f, 1f)
+            val selectedHeight = cropHeight.coerceIn(0.01f, 1f)
+            val leftFraction = cropX.coerceIn(0f, 1f - selectedWidth)
+            val topFraction = cropY.coerceIn(0f, 1f - selectedHeight)
+            val rightFraction = leftFraction + selectedWidth
+            val bottomFraction = topFraction + selectedHeight
             crop = Crop(
                 2f * leftFraction - 1f,
                 2f * rightFraction - 1f,
                 1f - 2f * bottomFraction,
                 1f - 2f * topFraction
             )
-            output = File(directory, "${base}_webcam_1x1.mp4")
-            updateNotice("Gerando webcam quadrada 1:1...")
+            output = File(directory, "${base}_webcam_personalizada.mp4")
+            updateNotice("Gerando recorte personalizado da webcam...")
         }
         currentExportOutput = output
         try {
@@ -309,29 +321,30 @@ class ScreenCaptureService : Service() {
 
         if (sourceAspect > targetAspect) {
             verticalWidth = (targetAspect / sourceAspect).coerceIn(0.01f, 1f)
-            val centerX = (cropX + cropSize / 2f)
+            val centerX = (cropX + cropWidth / 2f)
                 .coerceIn(verticalWidth / 2f, 1f - verticalWidth / 2f)
             verticalLeft = centerX - verticalWidth / 2f
         } else {
             verticalHeight = (sourceAspect / targetAspect).coerceIn(0.01f, 1f)
-            val selectedCenterY = cropY + (cropSize * sourceAspect) / 2f
+            val selectedCenterY = cropY + cropHeight / 2f
             val centerY = selectedCenterY
                 .coerceIn(verticalHeight / 2f, 1f - verticalHeight / 2f)
             verticalTop = centerY - verticalHeight / 2f
         }
 
-        val squareWidth = minOf(cropSize, 1f / sourceAspect).coerceAtLeast(0.01f)
-        val squareHeight = (squareWidth * sourceAspect).coerceIn(0.01f, 1f)
-        val webcamLeft = cropX.coerceIn(0f, 1f - squareWidth)
-        val webcamTop = cropY.coerceIn(0f, 1f - squareHeight)
+        val selectedWidth = cropWidth.coerceIn(0.01f, 1f)
+        val selectedHeight = cropHeight.coerceIn(0.01f, 1f)
+        val webcamLeft = cropX.coerceIn(0f, 1f - selectedWidth)
+        val webcamTop = cropY.coerceIn(0f, 1f - selectedHeight)
 
         val centerXInVertical = (
-            (webcamLeft + squareWidth / 2f - verticalLeft) / verticalWidth
+            (webcamLeft + selectedWidth / 2f - verticalLeft) / verticalWidth
         ).coerceIn(0f, 1f)
         val centerYInVertical = (
-            (webcamTop + squareHeight / 2f - verticalTop) / verticalHeight
+            (webcamTop + selectedHeight / 2f - verticalTop) / verticalHeight
         ).coerceIn(0f, 1f)
-        val overlayWidth = (squareWidth / verticalWidth).coerceIn(0.04f, 1f)
+        val overlayWidth = (selectedWidth / verticalWidth).coerceIn(0.02f, 1f)
+        val overlayHeight = (selectedHeight / verticalHeight).coerceIn(0.02f, 1f)
 
         currentExportOutput = combinedFile
         isCombinedExport = true
@@ -369,9 +382,8 @@ class ScreenCaptureService : Service() {
                             centerXInVertical * 2f - 1f,
                             1f - centerYInVertical * 2f
                         )
-                        // The compositor already compensates for the square overlay's aspect ratio.
-                        // Use the same scale on both axes to keep the webcam square.
-                        .setScale(overlayWidth, overlayWidth)
+                        // Independent scales preserve the user-selected rectangular crop.
+                        .setScale(overlayWidth, overlayHeight)
                         .build()
                 }
             }
@@ -449,7 +461,9 @@ class ScreenCaptureService : Service() {
         const val EXTRA_RESULT_DATA = "capture_result_data"
         const val EXTRA_CROP_X = "crop_x"
         const val EXTRA_CROP_Y = "crop_y"
-        const val EXTRA_CROP_SIZE = "crop_size"
+        const val EXTRA_CROP_WIDTH = "crop_width"
+        const val EXTRA_CROP_HEIGHT = "crop_height"
+        const val EXTRA_DURATION_MS = "recording_duration_ms"
         private const val NOTIFICATION_ID = 41
         private const val RESULT_NOTIFICATION_ID = 42
     }
