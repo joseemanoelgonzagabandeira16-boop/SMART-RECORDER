@@ -182,15 +182,15 @@ private fun CaptureScreen() {
                     verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(7.dp).clip(CircleShape).background(Accent))
                     Spacer(Modifier.width(6.dp))
-                    Text("PROTÓTIPO", color = Accent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Text("CAPTURA LOCAL", color = Accent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
         item {
             Column {
-                Text("Sua transmissão, do seu jeito.", color = TextMain, fontSize = 25.sp, fontWeight = FontWeight.Bold, lineHeight = 31.sp)
+                Text("Transforme sua live em conteúdo vertical.", color = TextMain, fontSize = 25.sp, fontWeight = FontWeight.Bold, lineHeight = 31.sp)
                 Spacer(Modifier.height(5.dp))
-                Text("Configure a área da webcam e prepare o enquadramento vertical.", color = TextMuted, fontSize = 13.sp, lineHeight = 19.sp)
+                Text("Defina a posição da webcam uma vez. O SMART RECORDER prepara os recortes automaticamente ao finalizar a gravação.", color = TextMuted, fontSize = 13.sp, lineHeight = 19.sp)
             }
         }
         item {
@@ -256,7 +256,7 @@ private fun CaptureScreen() {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("ÁREA DE ENQUADRAMENTO", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text("Posicione o recorte sobre a webcam na referência 16:9", color = TextMuted, fontSize = 12.sp)
+                        Text("Arraste o quadro até cobrir a webcam na referência 16:9", color = TextMuted, fontSize = 12.sp)
                     }
                     Icon(Icons.Default.Tune, contentDescription = null, tint = Accent)
                 }
@@ -292,11 +292,12 @@ private fun CaptureScreen() {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("FORMATO DE SAÍDA", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutputTile("9:16", "Vídeo vertical", Modifier.weight(1f))
-                    OutputTile("1:1", "Área da webcam", Modifier.weight(1f))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutputTile("9:16", "Vertical", Modifier.weight(1f))
+                    OutputTile("1:1", "Webcam", Modifier.weight(1f))
+                    OutputTile("9:16+", "Combinado", Modifier.weight(1f))
                 }
-                Text("Ao parar a captura, o app gera automaticamente o vídeo vertical 9:16, a webcam quadrada 1:1 e um terceiro MP4 com a webcam sobreposta na posição e no tamanho selecionados.",
+                Text("Ao finalizar, o app tenta exportar três arquivos MP4: vídeo vertical, webcam quadrada e vídeo vertical com a webcam sobreposta. Os arquivos ficam salvos neste aparelho.",
                     color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
             }
         }
@@ -317,7 +318,7 @@ private fun PreviewSelector(webcamX: Float, webcamY: Float, webcamSize: Float, o
         Box(Modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFF52637D), modifier = Modifier.size(36.dp))
-                Text("REFERÊNCIA VISUAL 16:9", color = Color(0xFF687B97), fontSize = 9.sp, letterSpacing = 1.sp)
+                Text("ÁREA DE REFERÊNCIA 16:9", color = Color(0xFF687B97), fontSize = 9.sp, letterSpacing = 1.sp)
             }
         }
         Box(
@@ -343,7 +344,7 @@ private fun PreviewSelector(webcamX: Float, webcamY: Float, webcamSize: Float, o
             }
             Box(Modifier.align(Alignment.TopStart).padding(5.dp).size(5.dp).clip(CircleShape).background(Accent))
         }
-        Text("MOVER", color = Accent, fontSize = 8.sp, fontWeight = FontWeight.Bold,
+        Text("ARRASTE PARA MOVER", color = Accent, fontSize = 8.sp, fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.BottomEnd).padding(10.dp)
                 .clip(RoundedCornerShape(6.dp)).background(Color(0xCC08111D)).padding(horizontal = 7.dp, vertical = 4.dp))
     }
@@ -452,8 +453,8 @@ private fun SettingsScreen() {
         Text("Preferências do SMART RECORDER", color = TextMuted, fontSize = 13.sp)
         Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Captura nativa", color = TextMain, fontWeight = FontWeight.SemiBold)
-                Text("A gravação e o processamento serão executados no dispositivo, sem servidor externo.",
+                Text("Processamento no aparelho", color = TextMain, fontWeight = FontWeight.SemiBold)
+                Text("A gravação e a exportação são processadas localmente. Não é necessário criar conta nem conectar um servidor.",
                     color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
             }
         }
