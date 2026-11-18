@@ -129,7 +129,7 @@ private fun CaptureScreen() {
     var recordingMinutes by remember(timingPreferences) { mutableFloatStateOf(timingPreferences.getInt("recording_minutes", 10).toFloat().coerceIn(1f, 240f)) }
     val mainCropWidth = 0.31640625f
     var mainX by remember(cropPreferences) {
-        mutableFloatStateOf(cropPreferences.getFloat("main_x", 0.3418f).coerceIn(0f, 1f - mainCropWidth))
+        mutableFloatStateOf(cropPreferences.getFloat("main_x", 0.5f).coerceIn(0f, 1f - mainCropWidth))
     }
     var webcamX by remember(cropPreferences) {
         mutableFloatStateOf(cropPreferences.getFloat("webcam_x", 0.58f).coerceIn(0f, 1f - webcamWidth))
