@@ -3,6 +3,7 @@ package com.smartteck.smartrecorder
 import android.content.Intent
 import android.net.Uri
 import android.media.projection.MediaProjectionManager
+import android.os.Environment
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -312,15 +313,37 @@ private fun OutputTile(format: String, description: String, modifier: Modifier =
 
 @Composable
 private fun VideosScreen() {
+    val context = LocalContext.current
+    val videoDirectory = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES)
+    val captures = remember {
+        videoDirectory?.listFiles { file -> file.isFile && file.extension.equals("mp4", ignoreCase = true) }
+            ?.sortedByDescending { it.lastModified() } ?: emptyList()
+    }
     Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Seus vídeos", color = TextMain, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        Text("Os vídeos reenquadrados aparecerão nesta área.", color = TextMuted, fontSize = 13.sp)
-        Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(20.dp)) {
-            Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = Accent, modifier = Modifier.size(42.dp))
-                Spacer(Modifier.height(12.dp))
-                Text("Nenhum vídeo por enquanto", color = TextMain, fontWeight = FontWeight.SemiBold)
-                Text("Quando o processamento estiver integrado, seus arquivos serão organizados aqui.", color = TextMuted, fontSize = 12.sp)
+        Text("Capturas originais salvas neste aparelho.", color = TextMuted, fontSize = 13.sp)
+        if (captures.isEmpty()) {
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = Accent, modifier = Modifier.size(42.dp))
+                    Spacer(Modifier.height(12.dp))
+                    Text("Nenhuma captura ainda", color = TextMain, fontWeight = FontWeight.SemiBold)
+                    Text("Quando você gravar uma tela, o arquivo aparecerá aqui.", color = TextMuted, fontSize = 12.sp)
+                }
+            }
+        } else {
+            captures.forEach { file ->
+                Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = Accent, modifier = Modifier.size(30.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(file.name, color = TextMain, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text(String.format(Locale.getDefault(), "%.1f MB", file.length() / (1024f * 1024f)),
+                                color = TextMuted, fontSize = 11.sp)
+                        }
+                    }
+                }
             }
         }
     }
