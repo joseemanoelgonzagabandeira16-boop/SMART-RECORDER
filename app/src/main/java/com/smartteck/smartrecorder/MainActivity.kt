@@ -123,6 +123,9 @@ private fun CaptureScreen() {
     val cropPreferences = remember(context) {
         context.getSharedPreferences("smart_recorder_crop", android.content.Context.MODE_PRIVATE)
     }
+    val displayMetrics = context.resources.displayMetrics
+    val sourceAspectRatio = maxOf(displayMetrics.widthPixels, displayMetrics.heightPixels).toFloat() /
+        minOf(displayMetrics.widthPixels, displayMetrics.heightPixels).coerceAtLeast(1).toFloat()
     var webcamWidth by remember(cropPreferences) {
         mutableFloatStateOf(cropPreferences.getFloat("webcam_width", 0.174375f).coerceIn(0.04f, 0.8f))
     }
@@ -134,10 +137,10 @@ private fun CaptureScreen() {
     var mainHeight by remember(cropPreferences) {
         mutableFloatStateOf(cropPreferences.getFloat("main_height", 1f).coerceIn(0.5f, 1f))
     }
-    val mainCropWidth = mainHeight * 0.31640625f
+    val mainCropWidth = mainHeight * (9f / 16f) / sourceAspectRatio
     var mainX by remember(cropPreferences) {
         val savedHeight = cropPreferences.getFloat("main_height", 1f).coerceIn(0.5f, 1f)
-        mutableFloatStateOf(cropPreferences.getFloat("main_x", (1f - savedHeight * 0.31640625f) / 2f).coerceIn(0f, 1f - savedHeight * 0.31640625f))
+        mutableFloatStateOf(cropPreferences.getFloat("main_x", (1f - savedHeight * (9f / 16f) / sourceAspectRatio) / 2f).coerceIn(0f, 1f - savedHeight * 0.31640625f))
     }
     var mainY by remember(cropPreferences) {
         val savedHeight = cropPreferences.getFloat("main_height", 1f).coerceIn(0.5f, 1f)
@@ -236,7 +239,7 @@ private fun CaptureScreen() {
                             Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Accent)
                         }
                     }
-                    Text("Mantenha o aparelho na horizontal para alinhar a referência 16:9. Abra a live no YouTube e, ao autorizar a captura, selecione a janela do YouTube se o Android oferecer essa opção.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
+                    Text("Mantenha o aparelho na horizontal. A área de pré-visualização acompanha a proporção da tela para manter o recorte 9:16 correto. Abra a live no YouTube e autorize a captura.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
                     Button(onClick = {
                         val launchIntent = context.packageManager.getLaunchIntentForPackage("com.google.android.youtube")
                         if (launchIntent != null) context.startActivity(launchIntent)
@@ -290,7 +293,7 @@ private fun CaptureScreen() {
                     }
                     Icon(Icons.Default.Tune, contentDescription = null, tint = Accent)
                 }
-                PreviewSelector(mainX, mainY, mainHeight, webcamX, webcamY, webcamWidth, webcamHeight,
+                PreviewSelector(mainX, mainY, mainHeight, sourceAspectRatio, webcamX, webcamY, webcamWidth, webcamHeight,
                     onMainChange = { x, y -> mainX = x; mainY = y; regionSaved = false },
                     onWebcamChange = { x, y, w, h ->
                         webcamX = x; webcamY = y; webcamWidth = w; webcamHeight = h; regionSaved = false
@@ -301,7 +304,7 @@ private fun CaptureScreen() {
                 }
                 Slider(value = mainHeight, onValueChange = {
                     mainHeight = it.coerceIn(0.5f, 1f)
-                    val newWidth = mainHeight * 0.31640625f
+                    val newWidth = mainHeight * (9f / 16f) / sourceAspectRatio
                     mainX = mainX.coerceIn(0f, 1f - newWidth)
                     mainY = mainY.coerceIn(0f, 1f - mainHeight)
                     regionSaved = false
@@ -373,7 +376,7 @@ private fun CaptureScreen() {
 
 @Composable
 private fun PreviewSelector(
-    mainX: Float, mainY: Float, mainHeight: Float,
+    mainX: Float, mainY: Float, mainHeight: Float, sourceAspectRatio: Float,
     webcamX: Float, webcamY: Float, webcamWidth: Float, webcamHeight: Float,
     onMainChange: (Float, Float) -> Unit,
     onWebcamChange: (Float, Float, Float, Float) -> Unit
@@ -387,7 +390,7 @@ private fun PreviewSelector(
     val currentWebcamWidth by rememberUpdatedState(webcamWidth)
     val currentWebcamHeight by rememberUpdatedState(webcamHeight)
     BoxWithConstraints(
-        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(18.dp))
+        modifier = Modifier.fillMaxWidth().aspectRatio(sourceAspectRatio).clip(RoundedCornerShape(18.dp))
             .background(Brush.linearGradient(listOf(Color(0xFF17243A), Color(0xFF080D18))))
             .border(1.dp, Color(0xFF2B3C55), RoundedCornerShape(18.dp))
     ) {
@@ -396,7 +399,7 @@ private fun PreviewSelector(
         Box(Modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFF52637D), modifier = Modifier.size(36.dp))
-                Text("ÁREA DE REFERÊNCIA 16:9", color = Color(0xFF687B97), fontSize = 9.sp)
+                Text("TELA HORIZONTAL" , color = Color(0xFF687B97), fontSize = 9.sp)
             }
         }
         Box(
@@ -409,7 +412,7 @@ private fun PreviewSelector(
                         change.consume()
                         val pw = previewWidthPx
                         val ph = previewHeightPx
-                        val cropWidth = currentMainHeight * 0.31640625f
+                        val cropWidth = currentMainHeight * (9f / 16f) / sourceAspectRatio
                         val nextX = (currentMainX + drag.x / pw).coerceIn(0f, 1f - cropWidth)
                         val nextY = (currentMainY + drag.y / ph).coerceIn(0f, 1f - currentMainHeight)
                         onMainChange(nextX, nextY)
