@@ -50,6 +50,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -213,6 +214,9 @@ private fun CaptureScreen() {
 
 @Composable
 private fun PreviewSelector(webcamX: Float, webcamY: Float, webcamSize: Float, onPositionChange: (Float, Float) -> Unit) {
+    val currentWebcamX by rememberUpdatedState(webcamX)
+    val currentWebcamY by rememberUpdatedState(webcamY)
+    val currentOnPositionChange by rememberUpdatedState(onPositionChange)
     BoxWithConstraints(
         modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(18.dp))
             .background(Brush.linearGradient(listOf(Color(0xFF17243A), Color(0xFF080D18))))
@@ -234,9 +238,9 @@ private fun PreviewSelector(webcamX: Float, webcamY: Float, webcamSize: Float, o
                         change.consume()
                         val parentWidth = size.width / webcamSize
                         val parentHeight = size.height / webcamSize
-                        val nextX = (webcamX + dragAmount.x / parentWidth).coerceIn(0f, 1f - webcamSize)
-                        val nextY = (webcamY + dragAmount.y / parentHeight).coerceIn(0f, 1f - webcamSize)
-                        onPositionChange(nextX, nextY)
+                        val nextX = (currentWebcamX + dragAmount.x / parentWidth).coerceIn(0f, 1f - webcamSize)
+                        val nextY = (currentWebcamY + dragAmount.y / parentHeight).coerceIn(0f, 1f - webcamSize)
+                        currentOnPositionChange(nextX, nextY)
                     }
                 },
             contentAlignment = Alignment.Center
