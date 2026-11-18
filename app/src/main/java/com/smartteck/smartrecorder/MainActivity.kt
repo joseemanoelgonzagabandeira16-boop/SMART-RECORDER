@@ -361,54 +361,79 @@ private fun OutputTile(format: String, description: String, modifier: Modifier =
 @Composable
 private fun VideosScreen() {
     val context = LocalContext.current
-    val videoDirectory = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES)
-    val captures = remember {
-        videoDirectory?.listFiles { file -> file.isFile && file.extension.equals("mp4", ignoreCase = true) }
-            ?.sortedByDescending { it.lastModified() } ?: emptyList()
+    fun loadCaptures(): List<File> {
+        val directory = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES)
+        return directory?.listFiles { file ->
+            file.isFile && file.extension.equals("mp4", ignoreCase = true)
+        }?.sortedByDescending { it.lastModified() } ?: emptyList()
     }
+    var captures by remember { mutableStateOf(loadCaptures()) }
+
     Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Seus vídeos", color = TextMain, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        Text("Gravações originais e recortes exportados neste aparelho.", color = TextMuted, fontSize = 13.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Seus vídeos", color = TextMain, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                Text("Gravações originais e recortes exportados neste aparelho.", color = TextMuted, fontSize = 13.sp)
+            }
+            OutlinedButton(
+                onClick = { captures = loadCaptures() },
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, Accent)
+            ) {
+                Text("ATUALIZAR", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
         if (captures.isEmpty()) {
             Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = Accent, modifier = Modifier.size(42.dp))
                     Spacer(Modifier.height(12.dp))
                     Text("Nenhuma captura ainda", color = TextMain, fontWeight = FontWeight.SemiBold)
-                    Text("Quando você gravar uma tela, o arquivo aparecerá aqui.", color = TextMuted, fontSize = 12.sp)
+                    Text("Quando você gravar uma tela, toque em ATUALIZAR para procurar novos arquivos.",
+                        color = TextMuted, fontSize = 12.sp)
                 }
             }
         } else {
-            captures.forEach { file ->
-                Card(
-                    onClick = {
-                        try {
-                            val videoUri = FileProvider.getUriForFile(
-                                context,
-                                "${context.packageName}.fileprovider",
-                                file
-                            )
-                            val playerIntent = Intent(Intent.ACTION_VIEW).apply {
-                                setDataAndType(videoUri, "video/mp4")
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(captures.size) { index ->
+                    val file = captures[index]
+                    val label = when {
+                        file.name.endsWith("_9x16.mp4", ignoreCase = true) -> "VÍDEO VERTICAL 9:16"
+                        file.name.endsWith("_webcam_1x1.mp4", ignoreCase = true) -> "WEBCAM QUADRADA 1:1"
+                        else -> "GRAVAÇÃO ORIGINAL"
+                    }
+                    Card(
+                        onClick = {
+                            try {
+                                val videoUri = FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    file
+                                )
+                                val playerIntent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(videoUri, "video/mp4")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(playerIntent)
+                            } catch (_: android.content.ActivityNotFoundException) {
+                                Toast.makeText(context, "Nenhum reprodutor de vídeo encontrado.", Toast.LENGTH_LONG).show()
+                            } catch (_: IllegalArgumentException) {
+                                Toast.makeText(context, "Não foi possível abrir este arquivo.", Toast.LENGTH_LONG).show()
                             }
-                            context.startActivity(playerIntent)
-                        } catch (_: android.content.ActivityNotFoundException) {
-                            Toast.makeText(context, "Nenhum reprodutor de vídeo encontrado.", Toast.LENGTH_LONG).show()
-                        } catch (_: IllegalArgumentException) {
-                            Toast.makeText(context, "Não foi possível abrir este arquivo.", Toast.LENGTH_LONG).show()
-                        }
-                    },
-                    colors = CardDefaults.cardColors(containerColor = Panel),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = Accent, modifier = Modifier.size(30.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(file.name, color = TextMain, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                            Text(String.format(Locale.getDefault(), "%.1f MB", file.length() / (1024f * 1024f)),
-                                color = TextMuted, fontSize = 11.sp)
+                        },
+                        colors = CardDefaults.cardColors(containerColor = Panel),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = Accent, modifier = Modifier.size(30.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(label, color = Accent, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.7.sp)
+                                Text(file.name, color = TextMain, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text(String.format(Locale.getDefault(), "%.1f MB", file.length() / (1024f * 1024f)),
+                                    color = TextMuted, fontSize = 11.sp)
+                            }
+                            Icon(Icons.Default.PlayArrow, contentDescription = "Reproduzir vídeo", tint = TextMuted)
                         }
                     }
                 }
