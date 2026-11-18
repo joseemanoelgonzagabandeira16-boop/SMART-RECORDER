@@ -8,7 +8,6 @@ import android.media.projection.MediaProjectionManager
 import android.os.Environment
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.core.content.FileProvider
@@ -147,16 +146,10 @@ private fun CaptureScreen() {
                 action = ScreenCaptureService.ACTION_START
                 putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
                 putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data)
-                val overlayRegion = context.getSharedPreferences("smart_recorder_crop", android.content.Context.MODE_PRIVATE)
-                val useOverlayRegion = overlayRegion.getBoolean("overlay_region_active", false)
-                putExtra(ScreenCaptureService.EXTRA_CROP_X,
-                    if (useOverlayRegion) overlayRegion.getFloat("overlay_x", webcamX) else webcamX)
-                putExtra(ScreenCaptureService.EXTRA_CROP_Y,
-                    if (useOverlayRegion) overlayRegion.getFloat("overlay_y", webcamY) else webcamY)
-                putExtra(ScreenCaptureService.EXTRA_CROP_WIDTH,
-                    if (useOverlayRegion) overlayRegion.getFloat("overlay_width", webcamWidth) else webcamWidth)
-                putExtra(ScreenCaptureService.EXTRA_CROP_HEIGHT,
-                    if (useOverlayRegion) overlayRegion.getFloat("overlay_height", webcamHeight) else webcamHeight)
+                putExtra(ScreenCaptureService.EXTRA_CROP_X, webcamX)
+                putExtra(ScreenCaptureService.EXTRA_CROP_Y, webcamY)
+                putExtra(ScreenCaptureService.EXTRA_CROP_WIDTH, webcamWidth)
+                putExtra(ScreenCaptureService.EXTRA_CROP_HEIGHT, webcamHeight)
                 putExtra(ScreenCaptureService.EXTRA_DURATION_MS, recordingMinutes.toLong() * 60_000L)
             }
             context.startForegroundService(captureIntent)
@@ -275,25 +268,6 @@ private fun CaptureScreen() {
                     }
                     Icon(Icons.Default.Tune, contentDescription = null, tint = Accent)
                 }
-                OutlinedButton(
-                    onClick = {
-                        if (!Settings.canDrawOverlays(context)) {
-                            val permissionIntent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                Uri.parse("package:" + context.packageName))
-                            context.startActivity(permissionIntent)
-                            Toast.makeText(context, "Autorize a sobreposição e toque novamente em MOLDURA FLUTUANTE.", Toast.LENGTH_LONG).show()
-                        } else {
-                            context.startService(Intent(context, RegionOverlayService::class.java).setAction(RegionOverlayService.ACTION_SHOW))
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(46.dp),
-                    shape = RoundedCornerShape(13.dp),
-                    border = BorderStroke(1.dp, Accent)
-                ) {
-                    Icon(Icons.Default.Tune, contentDescription = null, tint = Accent)
-                    Spacer(Modifier.width(8.dp))
-                    Text("POSICIONAR MOLDURA SOBRE O YOUTUBE", color = Accent, fontWeight = FontWeight.Bold)
-                }
                 PreviewSelector(webcamX, webcamY, webcamWidth, webcamHeight, onChange = { x, y, w, h ->
                     webcamX = x; webcamY = y; webcamWidth = w; webcamHeight = h; regionSaved = false
                 })
@@ -357,7 +331,10 @@ private fun PreviewSelector(
     onChange: (Float, Float, Float, Float) -> Unit
 ) {
     val density = LocalDensity.current
-    var dragMode by remember { mutableStateOf("move") }
+    val currentWebcamX by rememberUpdatedState(webcamX)
+    val currentWebcamY by rememberUpdatedState(webcamY)
+    val currentWebcamWidth by rememberUpdatedState(webcamWidth)
+    val currentWebcamHeight by rememberUpdatedState(webcamHeight)
     BoxWithConstraints(
         modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(18.dp))
             .background(Brush.linearGradient(listOf(Color(0xFF17243A), Color(0xFF080D18))))
@@ -373,12 +350,16 @@ private fun PreviewSelector(
             modifier = Modifier.offset(x = maxWidth * webcamX, y = maxHeight * webcamY)
                 .width(maxWidth * webcamWidth).height(maxHeight * webcamHeight)
                 .border(2.dp, Accent, RoundedCornerShape(7.dp)).background(Color(0x553ED8B5))
-                .pointerInput(maxWidth, maxHeight, webcamWidth, webcamHeight) {
+                .pointerInput(maxWidth, maxHeight) {
                     detectDragGestures { change, drag ->
                         change.consume()
-                        val pw = with(density) { maxWidth.toPx() }; val ph = with(density) { maxHeight.toPx() }
-                        onChange((webcamX + drag.x / pw).coerceIn(0f, 1f-webcamWidth),
-                            (webcamY + drag.y / ph).coerceIn(0f, 1f-webcamHeight), webcamWidth, webcamHeight)
+                        val pw = with(density) { maxWidth.toPx() }
+                        val ph = with(density) { maxHeight.toPx() }
+                        val nextX = (currentWebcamX + drag.x / pw)
+                            .coerceIn(0f, 1f - currentWebcamWidth)
+                        val nextY = (currentWebcamY + drag.y / ph)
+                            .coerceIn(0f, 1f - currentWebcamHeight)
+                        onChange(nextX, nextY, currentWebcamWidth, currentWebcamHeight)
                     }
                 },
             contentAlignment = Alignment.Center
