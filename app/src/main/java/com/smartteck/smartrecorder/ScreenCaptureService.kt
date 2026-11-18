@@ -22,7 +22,11 @@ import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import androidx.media3.common.MediaItem
+import androidx.media3.common.OverlaySettings
+import androidx.media3.common.VideoCompositorSettings
+import androidx.media3.common.util.Size
 import androidx.media3.effect.Crop
+import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.transformer.Effects
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.transformer.Composition
@@ -47,6 +51,7 @@ class ScreenCaptureService : Service() {
     private var cropY = 0.12f
     private var cropSize = 0.31f
     private var exportStage = 0
+    private var isCombinedExport = false
     private var isFinalizing = false
     private var captureWidth = 0
     private var captureHeight = 0
@@ -244,8 +249,14 @@ class ScreenCaptureService : Service() {
                     .addListener(object : Transformer.Listener {
                         override fun onCompleted(composition: Composition, exportResult: ExportResult) {
                             currentExportOutput = null
-                            exportStage++
-                            if (exportStage < 2) startNextExport(source) else finishService()
+                            if (isCombinedExport) {
+                                isCombinedExport = false
+                                finishService()
+                            } else {
+                                exportStage++
+                                if (exportStage < 2) startNextExport(source)
+                                else startCombinedExport(source)
+                            }
                         }
 
                         override fun onError(
@@ -268,6 +279,111 @@ class ScreenCaptureService : Service() {
         }
     }
 
+    /**
+     * Combina o vídeo vertical como fundo e a webcam como segunda faixa,
+     * usando exatamente a região que o usuário selecionou na tela de captura.
+     */
+    private fun startCombinedExport(source: File) {
+        val directory = source.parentFile ?: run { finishService(error = true); return }
+        val base = source.nameWithoutExtension
+        val verticalFile = File(directory, "${base}_9x16.mp4")
+        val webcamFile = File(directory, "${base}_webcam_1x1.mp4")
+        val combinedFile = File(directory, "${base}_combined.mp4")
+
+        if (!verticalFile.exists() || verticalFile.length() == 0L ||
+            !webcamFile.exists() || webcamFile.length() == 0L
+        ) {
+            finishService(error = true)
+            return
+        }
+
+        val sourceAspect = if (captureWidth > 0 && captureHeight > 0) {
+            captureWidth.toFloat() / captureHeight.toFloat()
+        } else 16f / 9f
+
+        val targetAspect = 9f / 16f
+        var verticalLeft = 0f
+        var verticalTop = 0f
+        var verticalWidth = 1f
+        var verticalHeight = 1f
+
+        if (sourceAspect > targetAspect) {
+            verticalWidth = (targetAspect / sourceAspect).coerceIn(0.01f, 1f)
+            val centerX = (cropX + cropSize / 2f)
+                .coerceIn(verticalWidth / 2f, 1f - verticalWidth / 2f)
+            verticalLeft = centerX - verticalWidth / 2f
+        } else {
+            verticalHeight = (sourceAspect / targetAspect).coerceIn(0.01f, 1f)
+            val selectedCenterY = cropY + (cropSize * sourceAspect) / 2f
+            val centerY = selectedCenterY
+                .coerceIn(verticalHeight / 2f, 1f - verticalHeight / 2f)
+            verticalTop = centerY - verticalHeight / 2f
+        }
+
+        val squareWidth = minOf(cropSize, 1f / sourceAspect).coerceAtLeast(0.01f)
+        val squareHeight = (squareWidth * sourceAspect).coerceIn(0.01f, 1f)
+        val webcamLeft = cropX.coerceIn(0f, 1f - squareWidth)
+        val webcamTop = cropY.coerceIn(0f, 1f - squareHeight)
+
+        val centerXInVertical = (
+            (webcamLeft + squareWidth / 2f - verticalLeft) / verticalWidth
+        ).coerceIn(0f, 1f)
+        val centerYInVertical = (
+            (webcamTop + squareHeight / 2f - verticalTop) / verticalHeight
+        ).coerceIn(0f, 1f)
+        val overlayWidth = (squareWidth / verticalWidth).coerceIn(0.04f, 1f)
+        val overlayHeight = (squareHeight / verticalHeight).coerceIn(0.04f, 1f)
+
+        currentExportOutput = combinedFile
+        isCombinedExport = true
+        updateNotice("Combinando vídeo vertical e webcam automaticamente...")
+
+        try {
+            val mainItem = EditedMediaItem.Builder(
+                MediaItem.fromUri(Uri.fromFile(verticalFile))
+            ).build()
+            val webcamItem = EditedMediaItem.Builder(
+                MediaItem.fromUri(Uri.fromFile(webcamFile))
+            ).setRemoveAudio(true).build()
+
+            val mainSequence = EditedMediaItemSequence.withAudioAndVideoFrom(listOf(mainItem))
+            val webcamSequence = EditedMediaItemSequence.withVideoFrom(listOf(webcamItem))
+
+            val compositorSettings = object : VideoCompositorSettings {
+                override fun getOutputSize(inputSizes: List<Size>): Size {
+                    return inputSizes.firstOrNull() ?: Size(captureWidth.coerceAtLeast(2), captureHeight.coerceAtLeast(2))
+                }
+
+                override fun getOverlaySettings(
+                    inputId: Int,
+                    presentationTimeUs: Long
+                ): OverlaySettings {
+                    if (inputId == 0) return StaticOverlaySettings.Builder().build()
+                    return StaticOverlaySettings.Builder()
+                        .setOverlayFrameAnchor(0f, 0f)
+                        .setBackgroundFrameAnchor(
+                            centerXInVertical * 2f - 1f,
+                            1f - centerYInVertical * 2f
+                        )
+                        .setScale(overlayWidth, overlayHeight)
+                        .build()
+                }
+            }
+
+            val composition = Composition.Builder(mainSequence, webcamSequence)
+                .setVideoCompositorSettings(compositorSettings)
+                .build()
+
+            exportTransformer?.start(composition, combinedFile.absolutePath)
+                ?: throw IllegalStateException("Processador de vídeo indisponível.")
+        } catch (_: Exception) {
+            combinedFile.delete()
+            currentExportOutput = null
+            isCombinedExport = false
+            finishService(error = true)
+        }
+    }
+
     private fun releaseCaptureResources(stopProjection: Boolean) {
         try { recorder?.stop() } catch (_: Exception) {}
         try { virtualDisplay?.release() } catch (_: Exception) {}
@@ -282,10 +398,12 @@ class ScreenCaptureService : Service() {
     private fun finishService(error: Boolean = false) {
         if (error) currentExportOutput?.delete()
         currentExportOutput = null
-        val resultText = if (error) {
+        val resultText = if (error && exportStage >= 2) {
+            "Não foi possível combinar os vídeos. Os arquivos vertical e webcam foram mantidos."
+        } else if (error) {
             "Não foi possível concluir os recortes. A gravação original foi mantida."
         } else {
-            "Vídeos 9:16 e 1:1 concluídos."
+            "Vídeos vertical, webcam e combinado concluídos."
         }
         try { projection?.stop() } catch (_: Exception) {}
         projection = null
