@@ -255,7 +255,7 @@ private fun CaptureScreen() {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("ÁREA DE ENQUADRAMENTO", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text("Arraste o quadrado até a webcam", color = TextMuted, fontSize = 12.sp)
+                        Text("Posicione o recorte sobre a webcam na referência 16:9", color = TextMuted, fontSize = 12.sp)
                     }
                     Icon(Icons.Default.Tune, contentDescription = null, tint = Accent)
                 }
@@ -316,7 +316,7 @@ private fun PreviewSelector(webcamX: Float, webcamY: Float, webcamSize: Float, o
         Box(Modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFF52637D), modifier = Modifier.size(36.dp))
-                Text("PRÉVIA DA TRANSMISSÃO", color = Color(0xFF687B97), fontSize = 9.sp, letterSpacing = 1.sp)
+                Text("REFERÊNCIA VISUAL 16:9", color = Color(0xFF687B97), fontSize = 9.sp, letterSpacing = 1.sp)
             }
         }
         Box(
