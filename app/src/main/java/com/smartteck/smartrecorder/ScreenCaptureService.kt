@@ -23,7 +23,7 @@ import android.util.DisplayMetrics
 import android.view.WindowManager
 import androidx.media3.common.MediaItem
 import androidx.media3.effect.Crop
-import androidx.media3.effect.Effects
+import androidx.media3.transformer.Effects
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
