@@ -142,10 +142,10 @@ private fun CaptureScreen() {
         mutableFloatStateOf(cropPreferences.getFloat("main_y", (1f - savedHeight) / 2f).coerceIn(0f, 1f - savedHeight))
     }
     var webcamX by remember(cropPreferences) {
-        mutableFloatStateOf(cropPreferences.getFloat("webcam_x", 0.58f).coerceIn(0f, 1f - webcamWidth))
+        mutableFloatStateOf(cropPreferences.getFloat("webcam_x", 0.78f).coerceIn(0f, 1f - webcamWidth))
     }
     var webcamY by remember(cropPreferences) {
-        mutableFloatStateOf(cropPreferences.getFloat("webcam_y", 0.12f).coerceIn(0f, 1f - webcamHeight))
+        mutableFloatStateOf(cropPreferences.getFloat("webcam_y", 0.64f).coerceIn(0f, 1f - webcamHeight))
     }
     var regionSaved by remember(cropPreferences) {
         mutableStateOf(cropPreferences.contains("main_x") && cropPreferences.contains("webcam_x") &&
