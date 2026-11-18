@@ -144,6 +144,9 @@ private fun CaptureScreen() {
                 action = ScreenCaptureService.ACTION_START
                 putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
                 putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data)
+                putExtra(ScreenCaptureService.EXTRA_CROP_X, webcamX)
+                putExtra(ScreenCaptureService.EXTRA_CROP_Y, webcamY)
+                putExtra(ScreenCaptureService.EXTRA_CROP_SIZE, webcamSize)
             }
             context.startForegroundService(captureIntent)
             captureRunning = true
@@ -291,7 +294,7 @@ private fun CaptureScreen() {
                     OutputTile("9:16", "Vídeo vertical", Modifier.weight(1f))
                     OutputTile("1:1", "Área da webcam", Modifier.weight(1f))
                 }
-                Text("A captura inicial grava a tela em MP4 no armazenamento privado do aplicativo. Áudio e exportação dos dois enquadramentos serão integrados depois.",
+                Text("Ao parar a captura, o app processa localmente dois arquivos: um recorte vertical 9:16 centralizado na webcam e outro recorte quadrado 1:1 da área selecionada.",
                     color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
             }
         }
@@ -365,7 +368,7 @@ private fun VideosScreen() {
     }
     Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Seus vídeos", color = TextMain, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        Text("Capturas originais salvas neste aparelho.", color = TextMuted, fontSize = 13.sp)
+        Text("Gravações originais e recortes exportados neste aparelho.", color = TextMuted, fontSize = 13.sp)
         if (captures.isEmpty()) {
             Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
