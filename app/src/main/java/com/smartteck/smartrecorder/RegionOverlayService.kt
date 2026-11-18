@@ -53,6 +53,8 @@ class RegionOverlayService : Service() {
         val view = RegionSelectorView(this)
         selector = view
         root.addView(view, FrameLayout.LayoutParams(-1, -1))
+        root.bringChildToFront(hint)
+        root.bringChildToFront(save)
         val type = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                    else WindowManager.LayoutParams.TYPE_PHONE
         val params = WindowManager.LayoutParams(-1, -1, type,
