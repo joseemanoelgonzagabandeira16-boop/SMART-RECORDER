@@ -20,6 +20,8 @@ import android.os.Environment
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
+import android.os.PowerManager
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import androidx.media3.common.MediaItem
@@ -51,6 +53,8 @@ class ScreenCaptureService : Service() {
     private var exportTransformer: Transformer? = null
     private val captureHandler = Handler(Looper.getMainLooper())
     private var autoStopTask: Runnable? = null
+    private var autoStopDeadlineElapsed = 0L
+    private var recordingWakeLock: PowerManager.WakeLock? = null
     private var recordingDurationMs = 0L
     private var isFinalizing = false
     private var captureWidth = 0
@@ -143,10 +147,10 @@ class ScreenCaptureService : Service() {
             captureWidth = ((metrics.widthPixels * scale).toInt() / 2 * 2).coerceAtLeast(2)
             captureHeight = ((metrics.heightPixels * scale).toInt() / 2 * 2).coerceAtLeast(2)
 
-            // The UI preview is landscape 16:9. If the captured display is already portrait 9:16,
-            // use the complete display as the main vertical region instead of distorting it.
-            if (captureWidth.toFloat() / captureHeight.toFloat() <= 9f / 16f) {
-                mainX = 0f; mainY = 0f; mainWidth = 1f; mainHeight = 1f
+            // The crop controls are calibrated for a landscape 16:9 source.
+            // Never replace the user's selected crop with the full screen.
+            check(captureWidth > captureHeight) {
+                "A tela capturada está em retrato. Coloque o YouTube em modo horizontal e inicie novamente."
             }
             mainWidth = mainWidth.coerceAtMost(1f - mainX)
             mainHeight = mainHeight.coerceAtMost(1f - mainY)
@@ -185,11 +189,9 @@ class ScreenCaptureService : Service() {
                 pipeline.projectionSurface, null, Handler(Looper.getMainLooper())
             ) ?: error("Não foi possível conectar a captura à tela.")
 
-            if (recordingDurationMs > 0L) {
-                autoStopTask = Runnable { finishCapture() }
-                captureHandler.postDelayed(autoStopTask!!, recordingDurationMs)
-            }
-            updateNotice("Gravando somente vídeo vertical e webcam.")
+            acquireRecordingWakeLock()
+            scheduleAutomaticStop()
+            updateNotice("Gravando somente as áreas selecionadas.")
         } catch (failure: Exception) {
             releaseCaptureResources(stopProjection = true)
             mainOutputFile?.delete()
@@ -198,6 +200,46 @@ class ScreenCaptureService : Service() {
             showResultNotification("Falha ao iniciar a captura dupla: ${failure.message ?: "verifique as permissões e tente novamente."}")
             stopSelf()
         }
+    }
+
+    private fun acquireRecordingWakeLock() {
+        if (recordingWakeLock?.isHeld == true) return
+        recordingWakeLock = getSystemService(PowerManager::class.java)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SmartRecorder:Capture").apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+    }
+
+    private fun releaseRecordingWakeLock() {
+        try {
+            recordingWakeLock?.let { if (it.isHeld) it.release() }
+        } catch (_: Exception) {
+        } finally {
+            recordingWakeLock = null
+        }
+    }
+
+    private fun scheduleAutomaticStop() {
+        autoStopTask?.let { captureHandler.removeCallbacks(it) }
+        autoStopTask = null
+        if (recordingDurationMs <= 0L) return
+
+        autoStopDeadlineElapsed = SystemClock.elapsedRealtime() + recordingDurationMs
+        val stopCheck = object : Runnable {
+            override fun run() {
+                val remaining = autoStopDeadlineElapsed - SystemClock.elapsedRealtime()
+                if (remaining <= 0L) {
+                    autoStopTask = null
+                    updateNotice("Tempo encerrado. Parando a gravação e finalizando os vídeos...")
+                    finishCapture()
+                } else {
+                    captureHandler.postDelayed(this, minOf(remaining, 1_000L))
+                }
+            }
+        }
+        autoStopTask = stopCheck
+        captureHandler.postDelayed(stopCheck, minOf(recordingDurationMs, 1_000L))
     }
 
     private fun finishCapture(projectionAlreadyStopped: Boolean = false) {
@@ -215,6 +257,7 @@ class ScreenCaptureService : Service() {
             captureStopFailed = true
         }
         dualRecorder = null
+        releaseRecordingWakeLock()
         if (projectionAlreadyStopped) projection = null
         try { projection?.stop() } catch (_: Exception) {}
         projection = null
@@ -294,6 +337,7 @@ class ScreenCaptureService : Service() {
     }
 
     private fun releaseCaptureResources(stopProjection: Boolean) {
+        releaseRecordingWakeLock()
         try { virtualDisplay?.release() } catch (_: Exception) {}
         virtualDisplay = null
         try { dualRecorder?.release() } catch (_: Exception) {}
@@ -334,6 +378,7 @@ class ScreenCaptureService : Service() {
     }
 
     private fun finishService(error: Boolean = false) {
+        releaseRecordingWakeLock()
         if (error) currentExportOutput?.delete()
         currentExportOutput = null
         val count = if (!error) publishExportsToGallery() else 0
