@@ -123,7 +123,7 @@ private fun CaptureScreen() {
     val cropPreferences = remember(context) {
         context.getSharedPreferences("smart_recorder_crop", android.content.Context.MODE_PRIVATE)
     }
-    var webcamWidth by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("webcam_width", cropPreferences.getFloat("webcam_size", 0.31f)).coerceIn(0.05f, 0.95f)) }
+    var webcamWidth by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("webcam_width", cropPreferences.getFloat("webcam_size", 0.31f) * 9f / 16f).coerceIn(0.05f, 0.95f)) }
     var webcamHeight by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("webcam_height", cropPreferences.getFloat("webcam_size", 0.31f)).coerceIn(0.05f, 0.95f)) }
     val timingPreferences = remember(context) { context.getSharedPreferences("smart_recorder_timing", android.content.Context.MODE_PRIVATE) }
     var recordingMinutes by remember(timingPreferences) { mutableFloatStateOf(timingPreferences.getInt("recording_minutes", 10).toFloat().coerceIn(1f, 240f)) }
