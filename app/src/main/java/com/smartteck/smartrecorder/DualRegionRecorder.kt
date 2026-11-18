@@ -240,14 +240,7 @@ internal class DualRegionRecorder(
             handler.post {
                 try {
                     if (eglDisplay != EGL14.EGL_NO_DISPLAY) {
-                        if (mainEglSurface != EGL14.EGL_NO_SURFACE) {
-                            EGL14.eglDestroySurface(eglDisplay, mainEglSurface)
-                            mainEglSurface = EGL14.EGL_NO_SURFACE
-                        }
-                        if (webcamEglSurface != EGL14.EGL_NO_SURFACE) {
-                            EGL14.eglDestroySurface(eglDisplay, webcamEglSurface)
-                            webcamEglSurface = EGL14.EGL_NO_SURFACE
-                        }
+                        if (mainEglSurface != EGL14.EGL_NO_SURFACE) makeCurrent(mainEglSurface)
                         if (program != 0) {
                             GLES20.glDeleteProgram(program)
                             program = 0
@@ -255,6 +248,14 @@ internal class DualRegionRecorder(
                         if (textureId != 0) {
                             GLES20.glDeleteTextures(1, intArrayOf(textureId), 0)
                             textureId = 0
+                        }
+                        if (mainEglSurface != EGL14.EGL_NO_SURFACE) {
+                            EGL14.eglDestroySurface(eglDisplay, mainEglSurface)
+                            mainEglSurface = EGL14.EGL_NO_SURFACE
+                        }
+                        if (webcamEglSurface != EGL14.EGL_NO_SURFACE) {
+                            EGL14.eglDestroySurface(eglDisplay, webcamEglSurface)
+                            webcamEglSurface = EGL14.EGL_NO_SURFACE
                         }
                         if (eglContext != EGL14.EGL_NO_CONTEXT) {
                             EGL14.eglDestroyContext(eglDisplay, eglContext)
