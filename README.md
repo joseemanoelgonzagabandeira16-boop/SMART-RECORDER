@@ -1,32 +1,27 @@
 # SMART RECORDER
 
-Aplicativo Android nativo para captura local de transmissões exibidas no aplicativo oficial do YouTube.
+Aplicativo Android nativo para transformar uma transmissão exibida no aparelho em um vídeo vertical com webcam sobreposta.
 
-## O que já está no projeto
+## Captura atual
 - Interface Android em Kotlin + Jetpack Compose.
-- Acesso ao aplicativo oficial do YouTube.
-- Seletor visual quadrado para posicionar e ajustar a região da webcam, com posição e tamanho salvos localmente no aparelho.
+- Dois seletores independentes sobre uma referência 16:9:
+  - azul: região principal vertical 9:16;
+  - verde: região da webcam.
+- O MediaProjection entrega os quadros à memória como textura. Um pipeline OpenGL recorta a textura e envia cada região diretamente para uma superfície de codificação independente.
+- Não é criado nem salvo um arquivo de vídeo da tela inteira.
+- O app gera três arquivos MP4: vídeo vertical, webcam separada e composição final com webcam sobreposta.
+- O vídeo principal pode incluir o áudio captado pelo microfone do aparelho, se a permissão for concedida. O áudio interno do YouTube não é capturado por esta versão.
+- Os arquivos ficam inicialmente na pasta privada de vídeos do aplicativo e são copiados para Filmes/SMART RECORDER em Android 10 ou superior.
 - Telas separadas para Captura, Vídeos e Ajustes.
-- Fluxo de autorização MediaProjection do Android.
-- Serviço em primeiro plano para gravar a tela em MP4 enquanto o usuário usa outro aplicativo.
-- Processamento local com Media3 Transformer para exportar um recorte vertical 9:16, um recorte quadrado 1:1 e um terceiro MP4 com a webcam sobreposta ao vídeo vertical na posição/tamanho derivados da seleção.
-- Tela de vídeos lista as capturas MP4 locais e permite abri-las no reprodutor instalado.
-- Compartilhamento dos arquivos por FileProvider, sem expor caminhos internos do aplicativo.
-- Arquivos de captura gravados na pasta privada de vídeos do SMART RECORDER.
+- Compartilhamento por FileProvider.
 
-## Restrições
-- Sem servidor/backend.
-- Sem APIs externas.
-- Sem player ou plataforma intermediária.
-- Processamento local no dispositivo.
+## Restrições e permissões
+- Sem servidor/backend e sem APIs externas.
+- O Android sempre apresenta o diálogo do sistema para autorização de captura.
+- A seleção visual usa uma referência horizontal 16:9. A posição deve ser conferida com a transmissão e a orientação do aparelho.
+- O recorte principal é ajustado para a tela vertical quando a tela já está em proporção retrato.
+- Dois encoders H.264 simultâneos dependem do suporte do dispositivo. Alguns aparelhos podem não disponibilizar recursos suficientes.
+- A captura usa a textura integral apenas como entrada temporária em memória; os arquivos codificados contêm exclusivamente as duas regiões selecionadas.
 
-## Limitações desta etapa
-- A captura grava a tela inteira em um MP4 original; os três arquivos derivados são processados em sequência após parar.
-- Esta primeira versão ainda não grava áudio.
-- O seletor é uma referência visual 16:9, não uma prévia ao vivo do YouTube. O alinhamento com a transmissão precisa ser validado no aparelho e na orientação usados.
-- A captura ainda é somente vídeo, sem áudio do sistema ou microfone.
-- A exportação é sequencial e depende dos codecs de vídeo disponíveis no aparelho; falhas de exportação mantêm a gravação original.
-- O Android sempre apresenta seu próprio diálogo de autorização para captura de tela; o aplicativo não pode ignorá-lo.
-
-## Compilação
-O workflow de GitHub Actions tenta gerar o APK de depuração em cada push para a branch principal.
+## Compilação e testes
+O workflow GitHub Actions executa `assembleDebug`, instala o APK em um emulador Android e realiza um teste básico de inicialização.
