@@ -380,6 +380,7 @@ private fun PreviewSelector(
             .background(Brush.linearGradient(listOf(Color(0xFF17243A), Color(0xFF080D18))))
             .border(1.dp, Color(0xFF2B3C55), RoundedCornerShape(18.dp))
     ) {
+        val previewHeightPx = with(density) { maxHeight.toPx() }
         Box(Modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFF52637D), modifier = Modifier.size(36.dp))
@@ -434,7 +435,7 @@ private fun PreviewSelector(
                     .pointerInput(maxWidth, maxHeight) {
                         detectDragGestures { change, drag ->
                             change.consume()
-                            val ph = with(density) { maxHeight.toPx() }
+                            val ph = previewHeightPx
                             val nextHeight = (currentWebcamHeight + drag.y / ph)
                                 .coerceIn(0.08f, 0.8f)
                             val nextWidth = nextHeight * 9f / 16f
