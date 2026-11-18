@@ -183,26 +183,48 @@ class ScreenCaptureService : Service() {
         val base = source.nameWithoutExtension
         val output: File
         val crop: Crop
+        val sourceAspect = if (captureWidth > 0 && captureHeight > 0) {
+            captureWidth.toFloat() / captureHeight.toFloat()
+        } else 16f / 9f
         if (exportStage == 0) {
-            val aspect = if (captureWidth > 0 && captureHeight > 0) {
-                captureWidth.toFloat() / captureHeight.toFloat()
-            } else 16f / 9f
-            val verticalWidthFraction = ((9f / 16f) / aspect).coerceIn(0.05f, 1f)
-            val centerX = (cropX + cropSize / 2f).coerceIn(verticalWidthFraction / 2f, 1f - verticalWidthFraction / 2f)
-            val leftFraction = centerX - verticalWidthFraction / 2f
+            // Recorta 9:16 corretamente tanto de fontes horizontais quanto verticais.
+            val targetAspect = 9f / 16f
+            val leftFraction: Float
+            val rightFraction: Float
+            val topFraction: Float
+            val bottomFraction: Float
+            if (sourceAspect > targetAspect) {
+                val cropWidth = (targetAspect / sourceAspect).coerceIn(0.01f, 1f)
+                val centerX = (cropX + cropSize / 2f).coerceIn(cropWidth / 2f, 1f - cropWidth / 2f)
+                leftFraction = centerX - cropWidth / 2f
+                rightFraction = centerX + cropWidth / 2f
+                topFraction = 0f
+                bottomFraction = 1f
+            } else {
+                val cropHeight = (sourceAspect / targetAspect).coerceIn(0.01f, 1f)
+                val selectedCenterY = cropY + (cropSize * sourceAspect) / 2f
+                val centerY = selectedCenterY.coerceIn(cropHeight / 2f, 1f - cropHeight / 2f)
+                leftFraction = 0f
+                rightFraction = 1f
+                topFraction = centerY - cropHeight / 2f
+                bottomFraction = centerY + cropHeight / 2f
+            }
             crop = Crop(
                 2f * leftFraction - 1f,
-                2f * (leftFraction + verticalWidthFraction) - 1f,
-                -1f,
-                1f
+                2f * rightFraction - 1f,
+                1f - 2f * bottomFraction,
+                1f - 2f * topFraction
             )
             output = File(directory, "${base}_9x16.mp4")
             updateNotice("Gerando vídeo vertical 9:16...")
         } else {
-            val topFraction = cropY.coerceIn(0f, 1f)
-            val bottomFraction = (cropY + cropSize * (16f / 9f)).coerceIn(topFraction + 0.01f, 1f)
-            val leftFraction = cropX.coerceIn(0f, 1f)
-            val rightFraction = (cropX + cropSize).coerceIn(leftFraction + 0.01f, 1f)
+            // Converte a seleção normalizada em um quadrado de pixels na resolução capturada.
+            val squareWidth = minOf(cropSize, 1f / sourceAspect).coerceAtLeast(0.01f)
+            val squareHeight = (squareWidth * sourceAspect).coerceIn(0.01f, 1f)
+            val leftFraction = cropX.coerceIn(0f, 1f - squareWidth)
+            val topFraction = cropY.coerceIn(0f, 1f - squareHeight)
+            val rightFraction = leftFraction + squareWidth
+            val bottomFraction = topFraction + squareHeight
             crop = Crop(
                 2f * leftFraction - 1f,
                 2f * rightFraction - 1f,
