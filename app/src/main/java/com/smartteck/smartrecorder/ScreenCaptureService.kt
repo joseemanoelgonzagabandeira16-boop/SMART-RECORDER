@@ -14,6 +14,8 @@ import android.media.MediaRecorder
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
+import android.content.ContentValues
+import android.provider.MediaStore
 import android.os.Build
 import android.os.Environment
 import android.os.Handler
@@ -35,6 +37,7 @@ import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
 import java.io.File
+import java.io.FileInputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -443,15 +446,54 @@ class ScreenCaptureService : Service() {
         projection = null
     }
 
+    private fun publishExportsToGallery(): Int {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return 0
+        val source = outputFile ?: return 0
+        val directory = source.parentFile ?: return 0
+        val prefix = source.nameWithoutExtension
+        val exports = directory.listFiles { file ->
+            file.isFile && file.extension.equals("mp4", true) &&
+                (file.name == source.name || file.name.startsWith("${prefix}_"))
+        }?.sortedBy { it.name } ?: return 0
+        var published = 0
+        for (file in exports) {
+            var itemUri: Uri? = null
+            try {
+                val values = ContentValues().apply {
+                    put(MediaStore.Video.Media.DISPLAY_NAME, file.name)
+                    put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                    put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/SMART RECORDER")
+                    put(MediaStore.Video.Media.IS_PENDING, 1)
+                }
+                itemUri = contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
+                    ?: continue
+                FileInputStream(file).use { input ->
+                    contentResolver.openOutputStream(itemUri!!, "w")!!.use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                val ready = ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }
+                contentResolver.update(itemUri!!, ready, null, null)
+                published++
+            } catch (_: Exception) {
+                itemUri?.let { try { contentResolver.delete(it, null, null) } catch (_: Exception) {} }
+            }
+        }
+        return published
+    }
+
     private fun finishService(error: Boolean = false) {
         if (error) currentExportOutput?.delete()
         currentExportOutput = null
+        val publishedCount = if (!error) publishExportsToGallery() else 0
         val resultText = if (error && exportStage >= 2) {
             "Não foi possível combinar os vídeos. Os arquivos vertical e webcam foram mantidos."
         } else if (error) {
             "Não foi possível concluir os recortes. A gravação original foi mantida."
+        } else if (publishedCount > 0) {
+            "Vídeos concluídos. $publishedCount arquivo(s) salvo(s) em Filmes/SMART RECORDER."
         } else {
-            "Vídeos vertical, webcam e combinado concluídos."
+            "Vídeos concluídos no armazenamento do aplicativo."
         }
         try { projection?.stop() } catch (_: Exception) {}
         projection = null
