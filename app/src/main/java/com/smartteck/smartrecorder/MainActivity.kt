@@ -123,10 +123,12 @@ private fun CaptureScreen() {
     val cropPreferences = remember(context) {
         context.getSharedPreferences("smart_recorder_crop", android.content.Context.MODE_PRIVATE)
     }
-    var webcamHeight by remember(cropPreferences) {
-        mutableFloatStateOf(cropPreferences.getFloat("webcam_height", cropPreferences.getFloat("webcam_size", 0.31f)).coerceIn(0.08f, 0.8f))
+    var webcamWidth by remember(cropPreferences) {
+        mutableFloatStateOf(cropPreferences.getFloat("webcam_width", 0.174375f).coerceIn(0.04f, 0.8f))
     }
-    val webcamWidth = webcamHeight * 9f / 16f
+    var webcamHeight by remember(cropPreferences) {
+        mutableFloatStateOf(cropPreferences.getFloat("webcam_height", cropPreferences.getFloat("webcam_size", 0.31f)).coerceIn(0.04f, 0.8f))
+    }
     val timingPreferences = remember(context) { context.getSharedPreferences("smart_recorder_timing", android.content.Context.MODE_PRIVATE) }
     var recordingMinutes by remember(timingPreferences) { mutableFloatStateOf(timingPreferences.getInt("recording_minutes", 10).toFloat().coerceIn(1f, 240f)) }
     var mainHeight by remember(cropPreferences) {
@@ -148,7 +150,8 @@ private fun CaptureScreen() {
         mutableFloatStateOf(cropPreferences.getFloat("webcam_y", 0.64f).coerceIn(0f, 1f - webcamHeight))
     }
     var regionSaved by remember(cropPreferences) {
-        mutableStateOf(cropPreferences.contains("main_x") && cropPreferences.contains("webcam_x") &&
+        mutableStateOf(cropPreferences.contains("main_x") && cropPreferences.contains("main_y") &&
+            cropPreferences.contains("main_height") && cropPreferences.contains("webcam_x") &&
             cropPreferences.contains("webcam_y") && cropPreferences.contains("webcam_width") &&
             cropPreferences.contains("webcam_height"))
     }
@@ -283,14 +286,14 @@ private fun CaptureScreen() {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("DUAS ÁREAS DE CAPTURA", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text("Azul: vídeo vertical 9:16 • Verde: webcam. Arraste os quadros para mover e puxe o canto verde para redimensionar a webcam.", color = TextMuted, fontSize = 12.sp)
+                        Text("Azul: vídeo vertical 9:16 • Verde: webcam. Arraste para mover e ajuste largura e altura separadamente.", color = TextMuted, fontSize = 12.sp)
                     }
                     Icon(Icons.Default.Tune, contentDescription = null, tint = Accent)
                 }
                 PreviewSelector(mainX, mainY, mainHeight, webcamX, webcamY, webcamWidth, webcamHeight,
                     onMainChange = { x, y -> mainX = x; mainY = y; regionSaved = false },
                     onWebcamChange = { x, y, w, h ->
-                        webcamX = x; webcamY = y; webcamHeight = h; regionSaved = false
+                        webcamX = x; webcamY = y; webcamWidth = w; webcamHeight = h; regionSaved = false
                     })
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Tamanho do enquadramento vertical", color = TextMuted, fontSize = 12.sp, modifier = Modifier.weight(1f))
@@ -304,15 +307,23 @@ private fun CaptureScreen() {
                     regionSaved = false
                 }, valueRange = 0.5f..1f)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Tamanho do quadrado da webcam", color = TextMuted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    Text("Largura da webcam", color = TextMuted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    Text("${(webcamWidth * 100).toInt()}%", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                Slider(value = webcamWidth, onValueChange = {
+                    webcamWidth = it.coerceIn(0.04f, 0.8f)
+                    webcamX = webcamX.coerceIn(0f, 1f - webcamWidth)
+                    regionSaved = false
+                }, valueRange = 0.04f..0.8f)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Altura da webcam", color = TextMuted, fontSize = 12.sp, modifier = Modifier.weight(1f))
                     Text("${(webcamHeight * 100).toInt()}%", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
                 Slider(value = webcamHeight, onValueChange = {
-                    webcamHeight = it.coerceIn(0.08f, 0.8f)
-                    webcamX = webcamX.coerceIn(0f, 1f - webcamHeight * 9f / 16f)
+                    webcamHeight = it.coerceIn(0.04f, 0.8f)
                     webcamY = webcamY.coerceIn(0f, 1f - webcamHeight)
                     regionSaved = false
-                }, valueRange = 0.08f..0.8f)
+                }, valueRange = 0.04f..0.8f)
                 OutlinedButton(onClick = {
                     cropPreferences.edit()
                         .putFloat("main_x", mainX)
@@ -353,7 +364,7 @@ private fun CaptureScreen() {
                     OutputTile("1:1", "Webcam", Modifier.weight(1f))
                     OutputTile("9:16+", "Combinado", Modifier.weight(1f))
                 }
-                Text("O app grava diretamente as duas regiões selecionadas e gera três MP4: vídeo vertical, webcam separada e composição com a webcam sobreposta. Não é criado arquivo de tela inteira.",
+                Text("O app grava diretamente as duas regiões selecionadas e gera três MP4: vídeo vertical, webcam no tamanho escolhido e composição final. Não é criado arquivo de tela inteira.",
                     color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
             }
         }
@@ -437,9 +448,10 @@ private fun PreviewSelector(
                         detectDragGestures { change, drag ->
                             change.consume()
                             val ph = previewHeightPx
-                            val nextHeight = (currentWebcamHeight + drag.y / ph)
-                                .coerceIn(0.08f, 0.8f)
-                            val nextWidth = nextHeight * 9f / 16f
+                            val nextWidth = (currentWebcamWidth + drag.x / previewWidthPx)
+                                .coerceIn(0.04f, 0.8f)
+                            val nextHeight = (currentWebcamHeight + drag.y / previewHeightPx)
+                                .coerceIn(0.04f, 0.8f)
                             val nextX = currentWebcamX.coerceIn(0f, 1f - nextWidth)
                             val nextY = currentWebcamY.coerceIn(0f, 1f - nextHeight)
                             onWebcamChange(nextX, nextY, nextWidth, nextHeight)
