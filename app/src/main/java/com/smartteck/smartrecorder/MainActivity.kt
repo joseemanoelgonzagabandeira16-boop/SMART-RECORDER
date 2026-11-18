@@ -127,6 +127,10 @@ private fun CaptureScreen() {
     var webcamHeight by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("webcam_height", cropPreferences.getFloat("webcam_size", 0.31f)).coerceIn(0.05f, 0.95f)) }
     val timingPreferences = remember(context) { context.getSharedPreferences("smart_recorder_timing", android.content.Context.MODE_PRIVATE) }
     var recordingMinutes by remember(timingPreferences) { mutableFloatStateOf(timingPreferences.getInt("recording_minutes", 10).toFloat().coerceIn(1f, 240f)) }
+    val mainCropWidth = 0.31640625f
+    var mainX by remember(cropPreferences) {
+        mutableFloatStateOf(cropPreferences.getFloat("main_x", 0.3418f).coerceIn(0f, 1f - mainCropWidth))
+    }
     var webcamX by remember(cropPreferences) {
         mutableFloatStateOf(cropPreferences.getFloat("webcam_x", 0.58f).coerceIn(0f, 1f - webcamWidth))
     }
@@ -134,8 +138,9 @@ private fun CaptureScreen() {
         mutableFloatStateOf(cropPreferences.getFloat("webcam_y", 0.12f).coerceIn(0f, 1f - webcamHeight))
     }
     var regionSaved by remember(cropPreferences) {
-        mutableStateOf(cropPreferences.contains("webcam_x") &&
-            cropPreferences.contains("webcam_y") && cropPreferences.contains("webcam_size"))
+        mutableStateOf(cropPreferences.contains("main_x") && cropPreferences.contains("webcam_x") &&
+            cropPreferences.contains("webcam_y") && cropPreferences.contains("webcam_width") &&
+            cropPreferences.contains("webcam_height"))
     }
     var captureRunning by remember { mutableStateOf(false) }
     val projectionManager = remember { context.getSystemService(android.content.Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager }
@@ -146,6 +151,10 @@ private fun CaptureScreen() {
                 action = ScreenCaptureService.ACTION_START
                 putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
                 putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data)
+                putExtra(ScreenCaptureService.EXTRA_MAIN_X, mainX)
+                putExtra(ScreenCaptureService.EXTRA_MAIN_Y, 0f)
+                putExtra(ScreenCaptureService.EXTRA_MAIN_WIDTH, mainCropWidth)
+                putExtra(ScreenCaptureService.EXTRA_MAIN_HEIGHT, 1f)
                 putExtra(ScreenCaptureService.EXTRA_CROP_X, webcamX)
                 putExtra(ScreenCaptureService.EXTRA_CROP_Y, webcamY)
                 putExtra(ScreenCaptureService.EXTRA_CROP_WIDTH, webcamWidth)
@@ -198,7 +207,7 @@ private fun CaptureScreen() {
             Column {
                 Text("Transforme sua live em conteúdo vertical.", color = TextMain, fontSize = 25.sp, fontWeight = FontWeight.Bold, lineHeight = 31.sp)
                 Spacer(Modifier.height(5.dp))
-                Text("Defina a posição da webcam uma vez. O SMART RECORDER prepara os recortes automaticamente ao finalizar a gravação.", color = TextMuted, fontSize = 13.sp, lineHeight = 19.sp)
+                Text("Posicione separadamente o vídeo vertical 9:16 e a webcam. O app grava as duas regiões em arquivos independentes, sem salvar um vídeo da tela inteira.", color = TextMuted, fontSize = 13.sp, lineHeight = 19.sp)
             }
         }
         item {
@@ -263,14 +272,16 @@ private fun CaptureScreen() {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("ÁREA DE ENQUADRAMENTO", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text("Arraste o quadro até cobrir a webcam na referência 16:9", color = TextMuted, fontSize = 12.sp)
+                        Text("DUAS ÁREAS DE CAPTURA", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("Azul: vídeo vertical 9:16 • Verde: webcam. Arraste cada quadro separadamente.", color = TextMuted, fontSize = 12.sp)
                     }
                     Icon(Icons.Default.Tune, contentDescription = null, tint = Accent)
                 }
-                PreviewSelector(webcamX, webcamY, webcamWidth, webcamHeight, onChange = { x, y, w, h ->
-                    webcamX = x; webcamY = y; webcamWidth = w; webcamHeight = h; regionSaved = false
-                })
+                PreviewSelector(mainX, webcamX, webcamY, webcamWidth, webcamHeight,
+                    onMainChange = { x -> mainX = x; regionSaved = false },
+                    onWebcamChange = { x, y, w, h ->
+                        webcamX = x; webcamY = y; webcamWidth = w; webcamHeight = h; regionSaved = false
+                    })
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Largura da região", color = TextMuted, fontSize = 12.sp, modifier = Modifier.weight(1f))
                     Text("${(webcamWidth * 100).toInt()}%", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -283,6 +294,7 @@ private fun CaptureScreen() {
                 Slider(value = webcamHeight, onValueChange = { webcamHeight = it.coerceIn(0.05f, 0.95f); webcamY = webcamY.coerceIn(0f, 1f - webcamHeight); regionSaved = false }, valueRange = 0.05f..0.95f)
                 OutlinedButton(onClick = {
                     cropPreferences.edit()
+                        .putFloat("main_x", mainX)
                         .putFloat("webcam_x", webcamX)
                         .putFloat("webcam_y", webcamY)
                         .putFloat("webcam_width", webcamWidth)
@@ -318,7 +330,7 @@ private fun CaptureScreen() {
                     OutputTile("1:1", "Webcam", Modifier.weight(1f))
                     OutputTile("9:16+", "Combinado", Modifier.weight(1f))
                 }
-                Text("Ao finalizar, o app exporta três arquivos MP4: vídeo vertical, recorte da webcam e vídeo vertical com a webcam sobreposta. No Android 10 ou superior, também tenta copiá-los para Filmes/SMART RECORDER na galeria.",
+                Text("O app grava diretamente as duas regiões selecionadas e gera três MP4: vídeo vertical, webcam separada e composição com a webcam sobreposta. Não é criado arquivo de tela inteira.",
                     color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
             }
         }
@@ -327,10 +339,12 @@ private fun CaptureScreen() {
 
 @Composable
 private fun PreviewSelector(
-    webcamX: Float, webcamY: Float, webcamWidth: Float, webcamHeight: Float,
-    onChange: (Float, Float, Float, Float) -> Unit
+    mainX: Float, webcamX: Float, webcamY: Float, webcamWidth: Float, webcamHeight: Float,
+    onMainChange: (Float) -> Unit,
+    onWebcamChange: (Float, Float, Float, Float) -> Unit
 ) {
     val density = LocalDensity.current
+    val currentMainX by rememberUpdatedState(mainX)
     val currentWebcamX by rememberUpdatedState(webcamX)
     val currentWebcamY by rememberUpdatedState(webcamY)
     val currentWebcamWidth by rememberUpdatedState(webcamWidth)
@@ -347,6 +361,23 @@ private fun PreviewSelector(
             }
         }
         Box(
+            modifier = Modifier.offset(x = maxWidth * mainX, y = 0.dp)
+                .width(maxWidth * 0.31640625f).height(maxHeight)
+                .border(2.dp, Color(0xFF4D9DFF), RoundedCornerShape(8.dp))
+                .background(Color(0x222E82E6))
+                .pointerInput(maxWidth, maxHeight) {
+                    detectDragGestures { change, drag ->
+                        change.consume()
+                        val pw = with(density) { maxWidth.toPx() }
+                        onMainChange((currentMainX + drag.x / pw).coerceIn(0f, 1f - 0.31640625f))
+                    }
+                },
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Text("VÍDEO 9:16", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 8.dp).background(Color(0xCC174C91), RoundedCornerShape(5.dp)).padding(5.dp))
+        }
+        Box(
             modifier = Modifier.offset(x = maxWidth * webcamX, y = maxHeight * webcamY)
                 .width(maxWidth * webcamWidth).height(maxHeight * webcamHeight)
                 .border(2.dp, Accent, RoundedCornerShape(7.dp)).background(Color(0x553ED8B5))
@@ -359,7 +390,7 @@ private fun PreviewSelector(
                             .coerceIn(0f, 1f - currentWebcamWidth)
                         val nextY = (currentWebcamY + drag.y / ph)
                             .coerceIn(0f, 1f - currentWebcamHeight)
-                        onChange(nextX, nextY, currentWebcamWidth, currentWebcamHeight)
+                        onWebcamChange(nextX, nextY, currentWebcamWidth, currentWebcamHeight)
                     }
                 },
             contentAlignment = Alignment.Center
@@ -402,7 +433,7 @@ private fun VideosScreen() {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Seus vídeos", color = TextMain, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                Text("Gravações originais e recortes exportados neste aparelho.", color = TextMuted, fontSize = 13.sp)
+                Text("Vídeo vertical, webcam e composição final.", color = TextMuted, fontSize = 13.sp)
             }
             OutlinedButton(
                 onClick = { captures = loadCaptures() },
@@ -418,7 +449,7 @@ private fun VideosScreen() {
                     Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = Accent, modifier = Modifier.size(42.dp))
                     Spacer(Modifier.height(12.dp))
                     Text("Nenhuma captura ainda", color = TextMain, fontWeight = FontWeight.SemiBold)
-                    Text("Quando você gravar uma tela, toque em ATUALIZAR para procurar novos arquivos.",
+                    Text("Quando a captura terminar, os três vídeos aparecerão aqui.",
                         color = TextMuted, fontSize = 12.sp)
                 }
             }
@@ -430,7 +461,7 @@ private fun VideosScreen() {
                         file.name.endsWith("_9x16.mp4", ignoreCase = true) -> "VÍDEO VERTICAL 9:16"
                         file.name.endsWith("_webcam_personalizada.mp4", ignoreCase = true) -> "WEBCAM PERSONALIZADA"
                         file.name.endsWith("_combined.mp4", ignoreCase = true) -> "VÍDEO COMBINADO 9:16"
-                        else -> "GRAVAÇÃO ORIGINAL"
+                        else -> "VÍDEO MP4"
                     }
                     Card(
                         onClick = {
