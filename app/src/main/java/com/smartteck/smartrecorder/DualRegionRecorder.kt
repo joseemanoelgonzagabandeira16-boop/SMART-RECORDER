@@ -63,6 +63,8 @@ internal class DualRegionRecorder(
     private var cropLocation = -1
     private var textureLocation = -1
     private var started = false
+    private var mainStarted = false
+    private var webcamStarted = false
     private var prepared = false
     private val vertexBuffer = floatBuffer(floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f))
     private val textureBuffer = floatBuffer(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f))
@@ -151,7 +153,9 @@ internal class DualRegionRecorder(
 
     fun start() {
         mainRecorder.start()
+        mainStarted = true
         webcamRecorder.start()
+        webcamStarted = true
         started = true
     }
 
@@ -188,47 +192,113 @@ internal class DualRegionRecorder(
     fun stop() {
         try { projectionInput?.release() } catch (_: Exception) {}
         projectionInput = null
-        val latch = CountDownLatch(1)
-        glHandler?.post {
-            try {
-                textureSurface?.setOnFrameAvailableListener(null)
-                textureSurface?.release()
-                textureSurface = null
-                if (eglDisplay != EGL14.EGL_NO_DISPLAY) {
-                    if (mainEglSurface != EGL14.EGL_NO_SURFACE) makeCurrent(mainEglSurface)
-                    if (mainEglSurface != EGL14.EGL_NO_SURFACE) EGL14.eglDestroySurface(eglDisplay, mainEglSurface)
-                    if (webcamEglSurface != EGL14.EGL_NO_SURFACE) EGL14.eglDestroySurface(eglDisplay, webcamEglSurface)
-                    if (program != 0) GLES20.glDeleteProgram(program)
-                    if (textureId != 0) GLES20.glDeleteTextures(1, intArrayOf(textureId), 0)
-                    EGL14.eglMakeCurrent(eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
-                    if (eglContext != EGL14.EGL_NO_CONTEXT) EGL14.eglDestroyContext(eglDisplay, eglContext)
-                    EGL14.eglTerminate(eglDisplay)
+
+        // First stop receiving frames, but keep encoder EGL surfaces alive until
+        // MediaRecorder has finalized its MP4 streams.
+        val detachLatch = CountDownLatch(1)
+        val handler = glHandler
+        if (handler != null) {
+            handler.post {
+                try {
+                    textureSurface?.setOnFrameAvailableListener(null)
+                    textureSurface?.release()
+                    textureSurface = null
+                    EGL14.eglMakeCurrent(
+                        eglDisplay,
+                        EGL14.EGL_NO_SURFACE,
+                        EGL14.EGL_NO_SURFACE,
+                        EGL14.EGL_NO_CONTEXT
+                    )
+                } catch (_: Exception) {
+                } finally {
+                    detachLatch.countDown()
                 }
-            } catch (_: Exception) {
-            } finally {
-                latch.countDown()
+            }
+            check(detachLatch.await(5, TimeUnit.SECONDS)) {
+                "Tempo esgotado ao encerrar a entrada de vídeo."
             }
         }
-        latch.await(3, TimeUnit.SECONDS)
+
+        var stopFailure: Throwable? = null
+        if (mainStarted) {
+            try { mainRecorder.stop() } catch (failure: RuntimeException) {
+                mainFile.delete()
+                stopFailure = failure
+            }
+        }
+        if (webcamStarted) {
+            try { webcamRecorder.stop() } catch (failure: RuntimeException) {
+                webcamFile.delete()
+                if (stopFailure == null) stopFailure = failure
+            }
+        }
+        mainStarted = false
+        webcamStarted = false
+
+        val cleanupLatch = CountDownLatch(1)
+        if (handler != null) {
+            handler.post {
+                try {
+                    if (eglDisplay != EGL14.EGL_NO_DISPLAY) {
+                        if (mainEglSurface != EGL14.EGL_NO_SURFACE) {
+                            EGL14.eglDestroySurface(eglDisplay, mainEglSurface)
+                            mainEglSurface = EGL14.EGL_NO_SURFACE
+                        }
+                        if (webcamEglSurface != EGL14.EGL_NO_SURFACE) {
+                            EGL14.eglDestroySurface(eglDisplay, webcamEglSurface)
+                            webcamEglSurface = EGL14.EGL_NO_SURFACE
+                        }
+                        if (program != 0) {
+                            GLES20.glDeleteProgram(program)
+                            program = 0
+                        }
+                        if (textureId != 0) {
+                            GLES20.glDeleteTextures(1, intArrayOf(textureId), 0)
+                            textureId = 0
+                        }
+                        if (eglContext != EGL14.EGL_NO_CONTEXT) {
+                            EGL14.eglDestroyContext(eglDisplay, eglContext)
+                            eglContext = EGL14.EGL_NO_CONTEXT
+                        }
+                        EGL14.eglTerminate(eglDisplay)
+                        eglDisplay = EGL14.EGL_NO_DISPLAY
+                    }
+                } catch (failure: Throwable) {
+                    if (stopFailure == null) stopFailure = failure
+                } finally {
+                    cleanupLatch.countDown()
+                }
+            }
+            check(cleanupLatch.await(5, TimeUnit.SECONDS)) {
+                "Tempo esgotado ao liberar o renderizador."
+            }
+            handlerThreadCleanup()
+        }
+
+        try { mainRecorder.release() } catch (_: Exception) {}
+        try { webcamRecorder.release() } catch (_: Exception) {}
+        started = false
+        prepared = false
+        if (stopFailure != null) throw IllegalStateException("Falha ao finalizar os arquivos MP4.", stopFailure)
+    }
+
+    private fun handlerThreadCleanup() {
         glThread?.quitSafely()
         glThread = null
         glHandler = null
-        try { mainRecorder.stop() } catch (_: RuntimeException) { mainFile.delete() }
-        try { webcamRecorder.stop() } catch (_: RuntimeException) { webcamFile.delete() }
-        mainRecorder.reset()
-        mainRecorder.release()
-        webcamRecorder.reset()
-        webcamRecorder.release()
-        started = false
-        prepared = false
     }
 
     fun release() {
-        if (started || prepared) stop() else {
-            try { projectionInput?.release() } catch (_: Exception) {}
-            try { textureSurface?.release() } catch (_: Exception) {}
+        try {
+            stop()
+        } catch (_: Exception) {
+            handlerThreadCleanup()
             try { mainRecorder.release() } catch (_: Exception) {}
             try { webcamRecorder.release() } catch (_: Exception) {}
+            started = false
+            mainStarted = false
+            webcamStarted = false
+            prepared = false
         }
     }
 
