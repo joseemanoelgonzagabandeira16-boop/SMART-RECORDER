@@ -123,15 +123,15 @@ private fun CaptureScreen() {
     val cropPreferences = remember(context) {
         context.getSharedPreferences("smart_recorder_crop", android.content.Context.MODE_PRIVATE)
     }
-    var webcamSize by remember(cropPreferences) {
-        mutableFloatStateOf(cropPreferences.getFloat("webcam_size", 0.31f).coerceIn(0.20f, 0.48f))
-    }
+    var webcamWidth by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("webcam_width", cropPreferences.getFloat("webcam_size", 0.31f)).coerceIn(0.05f, 0.95f)) }
+    var webcamHeight by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("webcam_height", cropPreferences.getFloat("webcam_size", 0.31f)).coerceIn(0.05f, 0.95f)) }
+    val timingPreferences = remember(context) { context.getSharedPreferences("smart_recorder_timing", android.content.Context.MODE_PRIVATE) }
+    var recordingMinutes by remember(timingPreferences) { mutableFloatStateOf(timingPreferences.getInt("recording_minutes", 10).toFloat().coerceIn(1f, 240f)) }
     var webcamX by remember(cropPreferences) {
-        mutableFloatStateOf(cropPreferences.getFloat("webcam_x", 0.58f).coerceIn(0f, 1f - webcamSize))
+        mutableFloatStateOf(cropPreferences.getFloat("webcam_x", 0.58f).coerceIn(0f, 1f - webcamWidth))
     }
     var webcamY by remember(cropPreferences) {
-        mutableFloatStateOf(cropPreferences.getFloat("webcam_y", 0.12f)
-            .coerceIn(0f, 1f - (16f / 9f) * webcamSize))
+        mutableFloatStateOf(cropPreferences.getFloat("webcam_y", 0.12f).coerceIn(0f, 1f - webcamHeight))
     }
     var regionSaved by remember(cropPreferences) {
         mutableStateOf(cropPreferences.contains("webcam_x") &&
@@ -148,7 +148,9 @@ private fun CaptureScreen() {
                 putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data)
                 putExtra(ScreenCaptureService.EXTRA_CROP_X, webcamX)
                 putExtra(ScreenCaptureService.EXTRA_CROP_Y, webcamY)
-                putExtra(ScreenCaptureService.EXTRA_CROP_SIZE, webcamSize)
+                putExtra(ScreenCaptureService.EXTRA_CROP_WIDTH, webcamWidth)
+                putExtra(ScreenCaptureService.EXTRA_CROP_HEIGHT, webcamHeight)
+                putExtra(ScreenCaptureService.EXTRA_DURATION_MS, recordingMinutes.toLong() * 60_000L)
             }
             context.startForegroundService(captureIntent)
             captureRunning = true
@@ -260,24 +262,26 @@ private fun CaptureScreen() {
                     }
                     Icon(Icons.Default.Tune, contentDescription = null, tint = Accent)
                 }
-                PreviewSelector(webcamX, webcamY, webcamSize) { x, y ->
-                    webcamX = x; webcamY = y; regionSaved = false
-                }
+                PreviewSelector(webcamX, webcamY, webcamWidth, webcamHeight, onChange = { x, y, w, h ->
+                    webcamX = x; webcamY = y; webcamWidth = w; webcamHeight = h; regionSaved = false
+                })
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Tamanho da seleção", color = TextMuted, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                    Text("${(webcamSize * 100).toInt()}%", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Largura da região", color = TextMuted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    Text("${(webcamWidth * 100).toInt()}%", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
-                Slider(value = webcamSize, onValueChange = {
-                    webcamSize = it.coerceIn(0.20f, 0.48f)
-                    webcamX = webcamX.coerceIn(0f, 1f - webcamSize)
-                    webcamY = webcamY.coerceIn(0f, 1f - (16f / 9f) * webcamSize)
-                    regionSaved = false
-                }, valueRange = 0.20f..0.48f)
+                Slider(value = webcamWidth, onValueChange = { webcamWidth = it.coerceIn(0.05f, 0.95f); webcamX = webcamX.coerceIn(0f, 1f - webcamWidth); regionSaved = false }, valueRange = 0.05f..0.95f)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Altura da região", color = TextMuted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    Text("${(webcamHeight * 100).toInt()}%", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                Slider(value = webcamHeight, onValueChange = { webcamHeight = it.coerceIn(0.05f, 0.95f); webcamY = webcamY.coerceIn(0f, 1f - webcamHeight); regionSaved = false }, valueRange = 0.05f..0.95f)
                 OutlinedButton(onClick = {
                     cropPreferences.edit()
                         .putFloat("webcam_x", webcamX)
                         .putFloat("webcam_y", webcamY)
-                        .putFloat("webcam_size", webcamSize)
+                        .putFloat("webcam_width", webcamWidth)
+                        .putFloat("webcam_height", webcamHeight)
+                        .putFloat("webcam_size", minOf(webcamWidth, webcamHeight))
                         .apply()
                     regionSaved = true
                 }, modifier = Modifier.fillMaxWidth().height(46.dp),
@@ -286,6 +290,17 @@ private fun CaptureScreen() {
                     Spacer(Modifier.width(8.dp))
                     Text(if (regionSaved) "REGIÃO DEFINIDA" else "CONFIRMAR REGIÃO",
                         color = if (regionSaved) Accent else TextMain, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, Color(0xFF26364D))) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("DURAÇÃO DA GRAVAÇÃO", color = TextMain, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("A captura será encerrada automaticamente após o tempo escolhido.", color = TextMuted, fontSize = 12.sp)
+                    Text("${recordingMinutes.toInt()} minutos", color = Accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Slider(value = recordingMinutes, onValueChange = { recordingMinutes = it }, valueRange = 1f..240f, steps = 238)
+                    OutlinedButton(onClick = { timingPreferences.edit().putInt("recording_minutes", recordingMinutes.toInt()).apply() }, modifier = Modifier.fillMaxWidth()) { Text("SALVAR DURAÇÃO", color = Accent) }
                 }
             }
         }
@@ -305,11 +320,12 @@ private fun CaptureScreen() {
 }
 
 @Composable
-private fun PreviewSelector(webcamX: Float, webcamY: Float, webcamSize: Float, onPositionChange: (Float, Float) -> Unit) {
-    val currentWebcamX by rememberUpdatedState(webcamX)
-    val currentWebcamY by rememberUpdatedState(webcamY)
-    val currentOnPositionChange by rememberUpdatedState(onPositionChange)
+private fun PreviewSelector(
+    webcamX: Float, webcamY: Float, webcamWidth: Float, webcamHeight: Float,
+    onChange: (Float, Float, Float, Float) -> Unit
+) {
     val density = LocalDensity.current
+    var dragMode by remember { mutableStateOf("move") }
     BoxWithConstraints(
         modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(18.dp))
             .background(Brush.linearGradient(listOf(Color(0xFF17243A), Color(0xFF080D18))))
@@ -318,22 +334,19 @@ private fun PreviewSelector(webcamX: Float, webcamY: Float, webcamSize: Float, o
         Box(Modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFF52637D), modifier = Modifier.size(36.dp))
-                Text("ÁREA DE REFERÊNCIA 16:9", color = Color(0xFF687B97), fontSize = 9.sp, letterSpacing = 1.sp)
+                Text("ÁREA DE REFERÊNCIA 16:9", color = Color(0xFF687B97), fontSize = 9.sp)
             }
         }
         Box(
             modifier = Modifier.offset(x = maxWidth * webcamX, y = maxHeight * webcamY)
-                .size(maxWidth * webcamSize)
-                .border(2.dp, Accent, RoundedCornerShape(8.dp))
-                .background(Color(0x553ED8B5))
-                .pointerInput(maxWidth, maxHeight, webcamSize) {
-                    detectDragGestures { change, dragAmount ->
+                .width(maxWidth * webcamWidth).height(maxHeight * webcamHeight)
+                .border(2.dp, Accent, RoundedCornerShape(7.dp)).background(Color(0x553ED8B5))
+                .pointerInput(maxWidth, maxHeight, webcamWidth, webcamHeight) {
+                    detectDragGestures { change, drag ->
                         change.consume()
-                        val parentWidth = with(density) { maxWidth.toPx() }
-                        val parentHeight = with(density) { maxHeight.toPx() }
-                        val nextX = (currentWebcamX + dragAmount.x / parentWidth).coerceIn(0f, 1f - webcamSize)
-                        val nextY = (currentWebcamY + dragAmount.y / parentHeight).coerceIn(0f, 1f - (16f / 9f) * webcamSize)
-                        currentOnPositionChange(nextX, nextY)
+                        val pw = with(density) { maxWidth.toPx() }; val ph = with(density) { maxHeight.toPx() }
+                        onChange((webcamX + drag.x / pw).coerceIn(0f, 1f-webcamWidth),
+                            (webcamY + drag.y / ph).coerceIn(0f, 1f-webcamHeight), webcamWidth, webcamHeight)
                     }
                 },
             contentAlignment = Alignment.Center
@@ -342,11 +355,11 @@ private fun PreviewSelector(webcamX: Float, webcamY: Float, webcamSize: Float, o
                 Icon(Icons.Default.FolderOpen, contentDescription = null, tint = TextMain, modifier = Modifier.size(19.dp))
                 Text("WEBCAM", color = TextMain, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             }
-            Box(Modifier.align(Alignment.TopStart).padding(5.dp).size(5.dp).clip(CircleShape).background(Accent))
+            Text("↘", color = Page, fontSize = 14.sp, modifier = Modifier.align(Alignment.BottomEnd)
+                .clip(CircleShape).background(Accent).padding(horizontal = 4.dp))
         }
-        Text("ARRASTE PARA MOVER", color = Accent, fontSize = 8.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(10.dp)
-                .clip(RoundedCornerShape(6.dp)).background(Color(0xCC08111D)).padding(horizontal = 7.dp, vertical = 4.dp))
+        Text("ARRASTE PARA MOVER • AJUSTE LARGURA E ALTURA ABAIXO", color = Accent, fontSize = 7.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp).background(Color(0xCC08111D)).padding(4.dp))
     }
 }
 
