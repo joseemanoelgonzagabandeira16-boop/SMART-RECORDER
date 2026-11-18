@@ -300,6 +300,13 @@ class ScreenCaptureService : Service() {
         val centerY = (webcamY + webcamHeight / 2f - mainY) / mainHeight
         val overlayWidth = (webcamWidth / mainWidth).coerceAtLeast(0.02f)
         val overlayHeight = (webcamHeight / mainHeight).coerceAtLeast(0.02f)
+        val mainEncodedSize = encodedRegionSize(mainWidth, mainHeight)
+        val webcamEncodedSize = encodedRegionSize(webcamWidth, webcamHeight)
+        // OverlaySettings scales the webcam input pixels, not normalized
+        // screen percentages. Convert the desired frame-relative dimensions
+        // into scale factors using both encoder resolutions.
+        val overlayScaleX = overlayWidth * mainEncodedSize.first / webcamEncodedSize.first
+        val overlayScaleY = overlayHeight * mainEncodedSize.second / webcamEncodedSize.second
 
         currentExportOutput = combinedFile
         updateNotice("Combinando as duas gravações...")
@@ -319,7 +326,7 @@ class ScreenCaptureService : Service() {
                     return OverlaySettings.Builder()
                         .setOverlayFrameAnchor(0f, 0f)
                         .setBackgroundFrameAnchor(centerX * 2f - 1f, 1f - centerY * 2f)
-                        .setScale(overlayWidth, overlayHeight)
+                        .setScale(overlayScaleX, overlayScaleY)
                         .build()
                 }
             }
@@ -349,6 +356,17 @@ class ScreenCaptureService : Service() {
             currentExportOutput = null
             finishService(error = true)
         }
+    }
+
+    private fun encodedRegionSize(regionWidth: Float, regionHeight: Float): Pair<Int, Int> {
+        val aspect = (captureWidth.toFloat() * regionWidth.coerceAtLeast(0.001f)) /
+            (captureHeight.toFloat() * regionHeight.coerceAtLeast(0.001f))
+        val longSide = if (aspect in 0.8f..1.25f) 720f else 1280f
+        val width = (if (aspect >= 1f) longSide else longSide * aspect).toInt()
+            .coerceAtLeast(2) / 2 * 2
+        val height = (if (aspect >= 1f) longSide / aspect else longSide).toInt()
+            .coerceAtLeast(2) / 2 * 2
+        return width to height
     }
 
     private fun releaseCaptureResources(stopProjection: Boolean) {
