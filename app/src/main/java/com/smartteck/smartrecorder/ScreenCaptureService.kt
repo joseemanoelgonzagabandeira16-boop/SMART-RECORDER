@@ -41,6 +41,7 @@ class ScreenCaptureService : Service() {
     private var virtualDisplay: VirtualDisplay? = null
     private var recorder: MediaRecorder? = null
     private var outputFile: File? = null
+    private var currentExportOutput: File? = null
     private var exportTransformer: Transformer? = null
     private var cropX = 0.58f
     private var cropY = 0.12f
@@ -206,6 +207,7 @@ class ScreenCaptureService : Service() {
             output = File(directory, "${base}_webcam_1x1.mp4")
             updateNotice("Gerando webcam quadrada 1:1...")
         }
+        currentExportOutput = output
         try {
             val edited = EditedMediaItem.Builder(MediaItem.fromUri(Uri.fromFile(source)))
                 .setEffects(Effects(emptyList(), listOf(crop)))
@@ -214,6 +216,7 @@ class ScreenCaptureService : Service() {
                 exportTransformer = Transformer.Builder(this)
                     .addListener(object : Transformer.Listener {
                         override fun onCompleted(composition: Composition, exportResult: ExportResult) {
+                            currentExportOutput = null
                             exportStage++
                             if (exportStage < 2) startNextExport(source) else finishService()
                         }
@@ -223,6 +226,8 @@ class ScreenCaptureService : Service() {
                             exportResult: ExportResult,
                             exportException: ExportException
                         ) {
+                            currentExportOutput?.delete()
+                            currentExportOutput = null
                             finishService(error = true)
                         }
                     })
@@ -231,6 +236,7 @@ class ScreenCaptureService : Service() {
             exportTransformer?.start(edited, output.absolutePath)
         } catch (_: Exception) {
             output.delete()
+            currentExportOutput = null
             finishService(error = true)
         }
     }
@@ -247,13 +253,37 @@ class ScreenCaptureService : Service() {
     }
 
     private fun finishService(error: Boolean = false) {
-        if (error) updateNotice("Não foi possível concluir os recortes. A gravação original foi mantida.")
-        else updateNotice("Vídeos 9:16 e 1:1 concluídos.")
+        if (error) currentExportOutput?.delete()
+        currentExportOutput = null
+        val resultText = if (error) {
+            "Não foi possível concluir os recortes. A gravação original foi mantida."
+        } else {
+            "Vídeos 9:16 e 1:1 concluídos."
+        }
         try { projection?.stop() } catch (_: Exception) {}
         projection = null
         exportTransformer = null
         stopForeground(STOP_FOREGROUND_REMOVE)
+        showResultNotification(resultText)
         stopSelf()
+    }
+
+    private fun showResultNotification(message: String) {
+        val channelId = "smart_recorder_capture"
+        val manager = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.createNotificationChannel(
+                NotificationChannel(channelId, "SMART RECORDER", NotificationManager.IMPORTANCE_LOW)
+            )
+        }
+        val resultNotification = Notification.Builder(this, channelId)
+            .setContentTitle("SMART RECORDER")
+            .setContentText(message)
+            .setSmallIcon(android.R.drawable.presence_video_online)
+            .setAutoCancel(true)
+            .setOngoing(false)
+            .build()
+        manager.notify(RESULT_NOTIFICATION_ID, resultNotification)
     }
 
     override fun onDestroy() {
@@ -270,5 +300,6 @@ class ScreenCaptureService : Service() {
         const val EXTRA_CROP_Y = "crop_y"
         const val EXTRA_CROP_SIZE = "crop_size"
         private const val NOTIFICATION_ID = 41
+        private const val RESULT_NOTIFICATION_ID = 42
     }
 }
