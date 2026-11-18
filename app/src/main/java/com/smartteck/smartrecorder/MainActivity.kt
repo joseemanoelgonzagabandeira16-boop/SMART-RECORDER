@@ -380,6 +380,7 @@ private fun PreviewSelector(
             .background(Brush.linearGradient(listOf(Color(0xFF17243A), Color(0xFF080D18))))
             .border(1.dp, Color(0xFF2B3C55), RoundedCornerShape(18.dp))
     ) {
+        val previewWidthPx = with(density) { maxWidth.toPx() }
         val previewHeightPx = with(density) { maxHeight.toPx() }
         Box(Modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -392,11 +393,11 @@ private fun PreviewSelector(
                 .width(maxWidth * (mainHeight * 0.31640625f)).height(maxHeight * mainHeight)
                 .border(2.dp, Color(0xFF4D9DFF), RoundedCornerShape(8.dp))
                 .background(Color(0x222E82E6))
-                .pointerInput(maxWidth, maxHeight) {
+                .pointerInput(previewWidthPx, previewHeightPx) {
                     detectDragGestures { change, drag ->
                         change.consume()
-                        val pw = with(density) { maxWidth.toPx() }
-                        val ph = with(density) { maxHeight.toPx() }
+                        val pw = previewWidthPx
+                        val ph = previewHeightPx
                         val cropWidth = currentMainHeight * 0.31640625f
                         val nextX = (currentMainX + drag.x / pw).coerceIn(0f, 1f - cropWidth)
                         val nextY = (currentMainY + drag.y / ph).coerceIn(0f, 1f - currentMainHeight)
@@ -412,11 +413,11 @@ private fun PreviewSelector(
             modifier = Modifier.offset(x = maxWidth * webcamX, y = maxHeight * webcamY)
                 .width(maxWidth * webcamWidth).height(maxHeight * webcamHeight)
                 .border(2.dp, Accent, RoundedCornerShape(7.dp)).background(Color(0x553ED8B5))
-                .pointerInput(maxWidth, maxHeight) {
+                .pointerInput(previewWidthPx, previewHeightPx) {
                     detectDragGestures { change, drag ->
                         change.consume()
-                        val pw = with(density) { maxWidth.toPx() }
-                        val ph = with(density) { maxHeight.toPx() }
+                        val pw = previewWidthPx
+                        val ph = previewHeightPx
                         val nextX = (currentWebcamX + drag.x / pw)
                             .coerceIn(0f, 1f - currentWebcamWidth)
                         val nextY = (currentWebcamY + drag.y / ph)
@@ -432,7 +433,7 @@ private fun PreviewSelector(
             }
             Text("↘", color = Page, fontSize = 14.sp,
                 modifier = Modifier.align(Alignment.BottomEnd)
-                    .pointerInput(maxWidth, maxHeight) {
+                    .pointerInput(previewHeightPx) {
                         detectDragGestures { change, drag ->
                             change.consume()
                             val ph = previewHeightPx
