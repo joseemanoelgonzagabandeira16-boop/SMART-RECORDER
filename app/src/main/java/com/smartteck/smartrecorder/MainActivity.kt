@@ -140,7 +140,7 @@ private fun CaptureScreen() {
     val mainCropWidth = mainHeight * (9f / 16f) / sourceAspectRatio
     var mainX by remember(cropPreferences) {
         val savedHeight = cropPreferences.getFloat("main_height", 1f).coerceIn(0.5f, 1f)
-        mutableFloatStateOf(cropPreferences.getFloat("main_x", (1f - savedHeight * (9f / 16f) / sourceAspectRatio) / 2f).coerceIn(0f, 1f - savedHeight * 0.31640625f))
+        mutableFloatStateOf(cropPreferences.getFloat("main_x", (1f - savedHeight * (9f / 16f) / sourceAspectRatio) / 2f).coerceIn(0f, 1f - savedHeight * (9f / 16f) / sourceAspectRatio))
     }
     var mainY by remember(cropPreferences) {
         val savedHeight = cropPreferences.getFloat("main_height", 1f).coerceIn(0.5f, 1f)
@@ -404,7 +404,7 @@ private fun PreviewSelector(
         }
         Box(
             modifier = Modifier.offset(x = maxWidth * mainX, y = maxHeight * mainY)
-                .width(maxWidth * (mainHeight * 0.31640625f)).height(maxHeight * mainHeight)
+                .width(maxWidth * (mainHeight * (9f / 16f) / sourceAspectRatio)).height(maxHeight * mainHeight)
                 .border(2.dp, Color(0xFF4D9DFF), RoundedCornerShape(8.dp))
                 .background(Color(0x222E82E6))
                 .pointerInput(previewWidthPx, previewHeightPx) {
