@@ -59,8 +59,8 @@ class ScreenCaptureService : Service() {
     private var mainY = 0f
     private var mainWidth = 0.3164f
     private var mainHeight = 1f
-    private var webcamX = 0.58f
-    private var webcamY = 0.12f
+    private var webcamX = 0.78f
+    private var webcamY = 0.64f
     private var webcamWidth = 0.174375f
     private var webcamHeight = 0.31f
     private var baseName = ""
