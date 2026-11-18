@@ -55,7 +55,7 @@ class ScreenCaptureService : Service() {
     private var isFinalizing = false
     private var captureWidth = 0
     private var captureHeight = 0
-    private var mainX = 0.3418f
+    private var mainX = 0.5f
     private var mainY = 0f
     private var mainWidth = 0.3164f
     private var mainHeight = 1f
