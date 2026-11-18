@@ -415,7 +415,7 @@ private fun VideosScreen() {
                     val file = captures[index]
                     val label = when {
                         file.name.endsWith("_9x16.mp4", ignoreCase = true) -> "VÍDEO VERTICAL 9:16"
-                        file.name.endsWith("_webcam_1x1.mp4", ignoreCase = true) -> "WEBCAM QUADRADA 1:1"
+                        file.name.endsWith("_webcam_personalizada.mp4", ignoreCase = true) -> "WEBCAM PERSONALIZADA"
                         file.name.endsWith("_combined.mp4", ignoreCase = true) -> "VÍDEO COMBINADO 9:16"
                         else -> "GRAVAÇÃO ORIGINAL"
                     }
