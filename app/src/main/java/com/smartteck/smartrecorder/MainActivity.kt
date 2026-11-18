@@ -129,9 +129,17 @@ private fun CaptureScreen() {
     val webcamWidth = webcamHeight * 9f / 16f
     val timingPreferences = remember(context) { context.getSharedPreferences("smart_recorder_timing", android.content.Context.MODE_PRIVATE) }
     var recordingMinutes by remember(timingPreferences) { mutableFloatStateOf(timingPreferences.getInt("recording_minutes", 10).toFloat().coerceIn(1f, 240f)) }
-    val mainCropWidth = 0.31640625f
+    var mainHeight by remember(cropPreferences) {
+        mutableFloatStateOf(cropPreferences.getFloat("main_height", 1f).coerceIn(0.5f, 1f))
+    }
+    val mainCropWidth = mainHeight * 0.31640625f
     var mainX by remember(cropPreferences) {
-        mutableFloatStateOf(cropPreferences.getFloat("main_x", 0.3418f).coerceIn(0f, 1f - mainCropWidth))
+        val savedHeight = cropPreferences.getFloat("main_height", 1f).coerceIn(0.5f, 1f)
+        mutableFloatStateOf(cropPreferences.getFloat("main_x", (1f - savedHeight * 0.31640625f) / 2f).coerceIn(0f, 1f - savedHeight * 0.31640625f))
+    }
+    var mainY by remember(cropPreferences) {
+        val savedHeight = cropPreferences.getFloat("main_height", 1f).coerceIn(0.5f, 1f)
+        mutableFloatStateOf(cropPreferences.getFloat("main_y", (1f - savedHeight) / 2f).coerceIn(0f, 1f - savedHeight))
     }
     var webcamX by remember(cropPreferences) {
         mutableFloatStateOf(cropPreferences.getFloat("webcam_x", 0.58f).coerceIn(0f, 1f - webcamWidth))
@@ -154,9 +162,9 @@ private fun CaptureScreen() {
                 putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
                 putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data)
                 putExtra(ScreenCaptureService.EXTRA_MAIN_X, mainX)
-                putExtra(ScreenCaptureService.EXTRA_MAIN_Y, 0f)
+                putExtra(ScreenCaptureService.EXTRA_MAIN_Y, mainY)
                 putExtra(ScreenCaptureService.EXTRA_MAIN_WIDTH, mainCropWidth)
-                putExtra(ScreenCaptureService.EXTRA_MAIN_HEIGHT, 1f)
+                putExtra(ScreenCaptureService.EXTRA_MAIN_HEIGHT, mainHeight)
                 putExtra(ScreenCaptureService.EXTRA_CROP_X, webcamX)
                 putExtra(ScreenCaptureService.EXTRA_CROP_Y, webcamY)
                 putExtra(ScreenCaptureService.EXTRA_CROP_WIDTH, webcamWidth)
@@ -279,11 +287,22 @@ private fun CaptureScreen() {
                     }
                     Icon(Icons.Default.Tune, contentDescription = null, tint = Accent)
                 }
-                PreviewSelector(mainX, webcamX, webcamY, webcamWidth, webcamHeight,
-                    onMainChange = { x -> mainX = x; regionSaved = false },
+                PreviewSelector(mainX, mainY, mainHeight, webcamX, webcamY, webcamWidth, webcamHeight,
+                    onMainChange = { x, y -> mainX = x; mainY = y; regionSaved = false },
                     onWebcamChange = { x, y, w, h ->
                         webcamX = x; webcamY = y; webcamHeight = h; regionSaved = false
                     })
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Tamanho do enquadramento vertical", color = TextMuted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    Text("${(mainHeight * 100).toInt()}%", color = Color(0xFF4D9DFF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                Slider(value = mainHeight, onValueChange = {
+                    mainHeight = it.coerceIn(0.5f, 1f)
+                    val newWidth = mainHeight * 0.31640625f
+                    mainX = mainX.coerceIn(0f, 1f - newWidth)
+                    mainY = mainY.coerceIn(0f, 1f - mainHeight)
+                    regionSaved = false
+                }, valueRange = 0.5f..1f)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Tamanho do quadrado da webcam", color = TextMuted, fontSize = 12.sp, modifier = Modifier.weight(1f))
                     Text("${(webcamHeight * 100).toInt()}%", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -297,6 +316,8 @@ private fun CaptureScreen() {
                 OutlinedButton(onClick = {
                     cropPreferences.edit()
                         .putFloat("main_x", mainX)
+                        .putFloat("main_y", mainY)
+                        .putFloat("main_height", mainHeight)
                         .putFloat("webcam_x", webcamX)
                         .putFloat("webcam_y", webcamY)
                         .putFloat("webcam_width", webcamWidth)
@@ -341,12 +362,15 @@ private fun CaptureScreen() {
 
 @Composable
 private fun PreviewSelector(
-    mainX: Float, webcamX: Float, webcamY: Float, webcamWidth: Float, webcamHeight: Float,
-    onMainChange: (Float) -> Unit,
+    mainX: Float, mainY: Float, mainHeight: Float,
+    webcamX: Float, webcamY: Float, webcamWidth: Float, webcamHeight: Float,
+    onMainChange: (Float, Float) -> Unit,
     onWebcamChange: (Float, Float, Float, Float) -> Unit
 ) {
     val density = LocalDensity.current
     val currentMainX by rememberUpdatedState(mainX)
+    val currentMainY by rememberUpdatedState(mainY)
+    val currentMainHeight by rememberUpdatedState(mainHeight)
     val currentWebcamX by rememberUpdatedState(webcamX)
     val currentWebcamY by rememberUpdatedState(webcamY)
     val currentWebcamWidth by rememberUpdatedState(webcamWidth)
@@ -363,15 +387,19 @@ private fun PreviewSelector(
             }
         }
         Box(
-            modifier = Modifier.offset(x = maxWidth * mainX, y = 0.dp)
-                .width(maxWidth * 0.31640625f).height(maxHeight)
+            modifier = Modifier.offset(x = maxWidth * mainX, y = maxHeight * mainY)
+                .width(maxWidth * (mainHeight * 0.31640625f)).height(maxHeight * mainHeight)
                 .border(2.dp, Color(0xFF4D9DFF), RoundedCornerShape(8.dp))
                 .background(Color(0x222E82E6))
                 .pointerInput(maxWidth, maxHeight) {
                     detectDragGestures { change, drag ->
                         change.consume()
                         val pw = with(density) { maxWidth.toPx() }
-                        onMainChange((currentMainX + drag.x / pw).coerceIn(0f, 1f - 0.31640625f))
+                        val ph = with(density) { maxHeight.toPx() }
+                        val cropWidth = currentMainHeight * 0.31640625f
+                        val nextX = (currentMainX + drag.x / pw).coerceIn(0f, 1f - cropWidth)
+                        val nextY = (currentMainY + drag.y / ph).coerceIn(0f, 1f - currentMainHeight)
+                        onMainChange(nextX, nextY)
                     }
                 },
             contentAlignment = Alignment.TopCenter
