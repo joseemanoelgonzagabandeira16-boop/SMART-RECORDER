@@ -5,17 +5,15 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
-import android.media.MediaRecorder
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
-import android.content.ContentValues
-import android.provider.MediaStore
 import android.os.Build
 import android.os.Environment
 import android.os.Handler
@@ -24,18 +22,16 @@ import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import androidx.media3.common.MediaItem
+import androidx.media3.common.util.Size
 import androidx.media3.effect.OverlaySettings
 import androidx.media3.effect.VideoCompositorSettings
-import androidx.media3.common.util.Size
-import androidx.media3.effect.Crop
-import androidx.media3.transformer.Effects
-import androidx.media3.common.util.UnstableApi
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
+import androidx.media3.common.util.UnstableApi
 import java.io.File
 import java.io.FileInputStream
 import java.text.SimpleDateFormat
@@ -46,35 +42,44 @@ import java.util.Locale
 class ScreenCaptureService : Service() {
     private var projection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
-    private var recorder: MediaRecorder? = null
-    private var outputFile: File? = null
+    private var dualRecorder: DualRegionRecorder? = null
+    private var mainOutputFile: File? = null
+    private var webcamOutputFile: File? = null
+    private var combinedOutputFile: File? = null
     private var currentExportOutput: File? = null
     private var exportTransformer: Transformer? = null
-    private var cropX = 0.58f
-    private var cropY = 0.12f
-    private var cropWidth = 0.31f
-    private var cropHeight = 0.31f
-    private var recordingDurationMs = 0L
     private val captureHandler = Handler(Looper.getMainLooper())
     private var autoStopTask: Runnable? = null
-    private var exportStage = 0
-    private var isCombinedExport = false
+    private var recordingDurationMs = 0L
     private var isFinalizing = false
     private var captureWidth = 0
     private var captureHeight = 0
+    private var mainX = 0.3418f
+    private var mainY = 0f
+    private var mainWidth = 0.3164f
+    private var mainHeight = 1f
+    private var webcamX = 0.58f
+    private var webcamY = 0.12f
+    private var webcamWidth = 0.31f
+    private var webcamHeight = 0.31f
+    private var baseName = ""
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_STOP -> finishCaptureAndExport()
+            ACTION_STOP -> finishCapture()
             ACTION_START -> {
-                cropX = intent.getFloatExtra(EXTRA_CROP_X, cropX).coerceIn(0f, 0.80f)
-                cropY = intent.getFloatExtra(EXTRA_CROP_Y, cropY).coerceIn(0f, 0.80f)
-                cropWidth = intent.getFloatExtra(EXTRA_CROP_WIDTH, cropWidth).coerceIn(0.05f, 0.95f)
-                cropHeight = intent.getFloatExtra(EXTRA_CROP_HEIGHT, cropHeight).coerceIn(0.05f, 0.95f)
+                mainX = intent.getFloatExtra(EXTRA_MAIN_X, mainX).coerceIn(0f, 0.99f)
+                mainY = intent.getFloatExtra(EXTRA_MAIN_Y, mainY).coerceIn(0f, 0.99f)
+                mainWidth = intent.getFloatExtra(EXTRA_MAIN_WIDTH, mainWidth).coerceIn(0.01f, 1f)
+                mainHeight = intent.getFloatExtra(EXTRA_MAIN_HEIGHT, mainHeight).coerceIn(0.01f, 1f)
+                webcamX = intent.getFloatExtra(EXTRA_CROP_X, webcamX).coerceIn(0f, 0.99f)
+                webcamY = intent.getFloatExtra(EXTRA_CROP_Y, webcamY).coerceIn(0f, 0.99f)
+                webcamWidth = intent.getFloatExtra(EXTRA_CROP_WIDTH, webcamWidth).coerceIn(0.01f, 1f)
+                webcamHeight = intent.getFloatExtra(EXTRA_CROP_HEIGHT, webcamHeight).coerceIn(0.01f, 1f)
                 recordingDurationMs = intent.getLongExtra(EXTRA_DURATION_MS, 0L).coerceAtLeast(0L)
-                startForegroundCompat("Captura de tela em andamento", showStop = true)
+                startForegroundCompat("Preparando captura de duas regiões", showStop = true)
                 startCapture(intent)
             }
         }
@@ -93,9 +98,10 @@ class ScreenCaptureService : Service() {
             .setSmallIcon(android.R.drawable.presence_video_online)
             .setOngoing(true)
         if (showStop) {
-            val stopIntent = PendingIntent.getService(this, 2,
-                Intent(this, ScreenCaptureService::class.java).setAction(ACTION_STOP),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            val stopIntent = PendingIntent.getService(
+                this, 2, Intent(this, ScreenCaptureService::class.java).setAction(ACTION_STOP),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
             builder.addAction(Notification.Action.Builder(null, "Parar", stopIntent).build())
         }
         return builder.build()
@@ -104,21 +110,16 @@ class ScreenCaptureService : Service() {
     private fun startForegroundCompat(text: String, showStop: Boolean) {
         val notice = notification(text, showStop)
         if (Build.VERSION.SDK_INT >= 29) {
-            var foregroundTypes = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
             if (Build.VERSION.SDK_INT >= 30 &&
-                checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
-                    android.content.pm.PackageManager.PERMISSION_GRANTED
-            ) {
-                foregroundTypes = foregroundTypes or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            }
-            startForeground(NOTIFICATION_ID, notice, foregroundTypes)
-        } else {
-            startForeground(NOTIFICATION_ID, notice)
-        }
+                checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            startForeground(NOTIFICATION_ID, notice, types)
+        } else startForeground(NOTIFICATION_ID, notice)
     }
 
     private fun updateNotice(text: String) {
-        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(text, showStop = false))
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(text, false))
     }
 
     private fun startCapture(command: Intent) {
@@ -129,326 +130,176 @@ class ScreenCaptureService : Service() {
             } else {
                 @Suppress("DEPRECATION")
                 command.getParcelableExtra(EXTRA_RESULT_DATA)
-            } ?: throw IllegalStateException("Autorização de captura não recebida.")
+            } ?: error("Autorização de captura não recebida.")
+
             val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            projection = manager.getMediaProjection(resultCode, data)
-                ?: throw IllegalStateException("Não foi possível iniciar a captura.")
+            projection = manager.getMediaProjection(resultCode, data) ?: error("Não foi possível iniciar a captura.")
             val metrics = DisplayMetrics()
             @Suppress("DEPRECATION")
             (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(metrics)
-            // Limita o maior lado a 1920 px para melhorar a compatibilidade com encoders móveis.
-            val sourceMaxSide = maxOf(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(2)
-            val scale = minOf(1f, 1920f / sourceMaxSide.toFloat())
-            val width = ((metrics.widthPixels * scale).toInt() / 2 * 2).coerceAtLeast(2)
-            val height = ((metrics.heightPixels * scale).toInt() / 2 * 2).coerceAtLeast(2)
-            captureWidth = width
-            captureHeight = height
+            val maxSide = maxOf(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(2)
+            val scale = minOf(1f, 1920f / maxSide.toFloat())
+            captureWidth = ((metrics.widthPixels * scale).toInt() / 2 * 2).coerceAtLeast(2)
+            captureHeight = ((metrics.heightPixels * scale).toInt() / 2 * 2).coerceAtLeast(2)
+
+            // The UI preview is landscape 16:9. If the captured display is already portrait 9:16,
+            // use the complete display as the main vertical region instead of distorting it.
+            if (captureWidth.toFloat() / captureHeight.toFloat() <= 9f / 16f) {
+                mainX = 0f; mainY = 0f; mainWidth = 1f; mainHeight = 1f
+            }
+            mainWidth = mainWidth.coerceAtMost(1f - mainX)
+            mainHeight = mainHeight.coerceAtMost(1f - mainY)
+            webcamWidth = webcamWidth.coerceAtMost(1f - webcamX)
+            webcamHeight = webcamHeight.coerceAtMost(1f - webcamY)
+
             val directory = getExternalFilesDir(Environment.DIRECTORY_MOVIES)
-                ?: throw IllegalStateException("Pasta de vídeos indisponível.")
+                ?: error("Pasta de vídeos indisponível.")
             if (!directory.exists()) directory.mkdirs()
-            val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
-            outputFile = File(directory, "SMART_RECORDER_$stamp.mp4")
-            val mediaRecorder = if (Build.VERSION.SDK_INT >= 31) MediaRecorder(this) else MediaRecorder()
-            recorder = mediaRecorder
-            val hasMicrophonePermission = checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+            baseName = "SMART_RECORDER_" + SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+            mainOutputFile = File(directory, "${baseName}_9x16.mp4")
+            webcamOutputFile = File(directory, "${baseName}_webcam_personalizada.mp4")
+            combinedOutputFile = File(directory, "${baseName}_combined.mp4")
+
+            val hasMic = checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
                 android.content.pm.PackageManager.PERMISSION_GRANTED
-            if (hasMicrophonePermission) {
-                mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
-            }
-            mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
-            mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-            if (hasMicrophonePermission) {
-                mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                mediaRecorder.setAudioSamplingRate(44_100)
-                mediaRecorder.setAudioEncodingBitRate(128_000)
-                mediaRecorder.setAudioChannels(1)
-            }
-            mediaRecorder.setVideoSize(width, height)
-            mediaRecorder.setVideoFrameRate(30)
-            mediaRecorder.setVideoEncodingBitRate(8_000_000)
-            mediaRecorder.setOutputFile(outputFile!!.absolutePath)
-            mediaRecorder.prepare()
+            val pipeline = DualRegionRecorder(
+                this, captureWidth, captureHeight,
+                mainX, mainY, mainWidth, mainHeight,
+                webcamX, webcamY, webcamWidth, webcamHeight,
+                mainOutputFile!!, webcamOutputFile!!, hasMic
+            )
+            dualRecorder = pipeline
+            pipeline.prepare()
+
             projection?.registerCallback(object : MediaProjection.Callback() {
                 override fun onStop() {
-                    if (!isFinalizing) finishCaptureAndExport(projectionAlreadyStopped = true)
+                    if (!isFinalizing) finishCapture(projectionAlreadyStopped = true)
                 }
             }, Handler(Looper.getMainLooper()))
-            virtualDisplay = projection!!.createVirtualDisplay("SMART_RECORDER_DISPLAY", width, height,
-                metrics.densityDpi, DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                mediaRecorder.surface, null, Handler(Looper.getMainLooper()))
-            mediaRecorder.start()
+
+            virtualDisplay = projection!!.createVirtualDisplay(
+                "SMART_RECORDER_DUAL_REGION", captureWidth, captureHeight, metrics.densityDpi,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                pipeline.projectionSurface, null, Handler(Looper.getMainLooper())
+            ) ?: error("Não foi possível conectar a captura à tela.")
+            pipeline.start()
+
             if (recordingDurationMs > 0L) {
-                autoStopTask = Runnable { finishCaptureAndExport() }
+                autoStopTask = Runnable { finishCapture() }
                 captureHandler.postDelayed(autoStopTask!!, recordingDurationMs)
             }
-        } catch (_: Exception) {
-            outputFile?.delete()
+            updateNotice("Gravando somente vídeo vertical e webcam.")
+        } catch (failure: Exception) {
             releaseCaptureResources(stopProjection = true)
+            mainOutputFile?.delete()
+            webcamOutputFile?.delete()
             stopForeground(STOP_FOREGROUND_REMOVE)
-            showResultNotification("Não foi possível iniciar a captura. Verifique a autorização e tente novamente.")
+            showResultNotification("Falha ao iniciar a captura dupla: ${failure.message ?: "verifique as permissões e tente novamente."}")
             stopSelf()
         }
     }
 
-    private fun finishCaptureAndExport(projectionAlreadyStopped: Boolean = false) {
+    private fun finishCapture(projectionAlreadyStopped: Boolean = false) {
         if (isFinalizing) return
         isFinalizing = true
         autoStopTask?.let { captureHandler.removeCallbacks(it) }
         autoStopTask = null
-        try {
-            recorder?.stop()
-        } catch (_: RuntimeException) {
-            outputFile?.delete()
-        }
         try { virtualDisplay?.release() } catch (_: Exception) {}
         virtualDisplay = null
-        try { recorder?.reset() } catch (_: Exception) {}
-        try { recorder?.release() } catch (_: Exception) {}
-        recorder = null
+        try { dualRecorder?.stop() } catch (_: Exception) {}
+        dualRecorder = null
         if (projectionAlreadyStopped) projection = null
-        val source = outputFile
-        if (source == null || !source.exists() || source.length() == 0L) {
-            finishService(error = true)
-            return
-        }
-        updateNotice("Preparando vídeo vertical e webcam...")
-        startNextExport(source)
-    }
+        try { projection?.stop() } catch (_: Exception) {}
+        projection = null
 
-    private fun startNextExport(source: File) {
-        val directory = source.parentFile ?: run { finishService(); return }
-        val base = source.nameWithoutExtension
-        val output: File
-        val crop: Crop
-        val sourceAspect = if (captureWidth > 0 && captureHeight > 0) {
-            captureWidth.toFloat() / captureHeight.toFloat()
-        } else 16f / 9f
-        if (exportStage == 0) {
-            // Recorta 9:16 corretamente tanto de fontes horizontais quanto verticais.
-            val targetAspect = 9f / 16f
-            val leftFraction: Float
-            val rightFraction: Float
-            val topFraction: Float
-            val bottomFraction: Float
-            if (sourceAspect > targetAspect) {
-                val cropWidth = (targetAspect / sourceAspect).coerceIn(0.01f, 1f)
-                // O enquadramento do vídeo principal é independente da moldura da webcam.
-                // Mantém o centro da live no eixo horizontal; a região da webcam só é usada
-                // para gerar o arquivo separado e posicioná-lo na composição final.
-                val centerX = 0.5f.coerceIn(cropWidth / 2f, 1f - cropWidth / 2f)
-                leftFraction = centerX - cropWidth / 2f
-                rightFraction = centerX + cropWidth / 2f
-                topFraction = 0f
-                bottomFraction = 1f
-            } else {
-                val cropHeight = (sourceAspect / targetAspect).coerceIn(0.01f, 1f)
-                // Em fontes muito estreitas, centraliza o recorte vertical sem
-                // permitir que a seleção da webcam desloque o vídeo principal.
-                val centerY = 0.5f.coerceIn(cropHeight / 2f, 1f - cropHeight / 2f)
-                leftFraction = 0f
-                rightFraction = 1f
-                topFraction = centerY - cropHeight / 2f
-                bottomFraction = centerY + cropHeight / 2f
-            }
-            crop = Crop(
-                2f * leftFraction - 1f,
-                2f * rightFraction - 1f,
-                1f - 2f * bottomFraction,
-                1f - 2f * topFraction
-            )
-            output = File(directory, "${base}_9x16.mp4")
-            updateNotice("Gerando vídeo vertical 9:16...")
-        } else {
-            // Usa exatamente o retângulo livre escolhido pelo usuário.
-            val selectedWidth = cropWidth.coerceIn(0.01f, 1f)
-            val selectedHeight = cropHeight.coerceIn(0.01f, 1f)
-            val leftFraction = cropX.coerceIn(0f, 1f - selectedWidth)
-            val topFraction = cropY.coerceIn(0f, 1f - selectedHeight)
-            val rightFraction = leftFraction + selectedWidth
-            val bottomFraction = topFraction + selectedHeight
-            crop = Crop(
-                2f * leftFraction - 1f,
-                2f * rightFraction - 1f,
-                1f - 2f * bottomFraction,
-                1f - 2f * topFraction
-            )
-            output = File(directory, "${base}_webcam_personalizada.mp4")
-            updateNotice("Gerando recorte personalizado da webcam...")
-        }
-        currentExportOutput = output
-        try {
-            val edited = EditedMediaItem.Builder(MediaItem.fromUri(Uri.fromFile(source)))
-                .setEffects(Effects(emptyList(), listOf(crop)))
-                .build()
-            if (exportTransformer == null) {
-                exportTransformer = Transformer.Builder(this)
-                    .addListener(object : Transformer.Listener {
-                        override fun onCompleted(composition: Composition, exportResult: ExportResult) {
-                            currentExportOutput = null
-                            if (isCombinedExport) {
-                                isCombinedExport = false
-                                finishService()
-                            } else {
-                                exportStage++
-                                if (exportStage < 2) startNextExport(source)
-                                else startCombinedExport(source)
-                            }
-                        }
-
-                        override fun onError(
-                            composition: Composition,
-                            exportResult: ExportResult,
-                            exportException: ExportException
-                        ) {
-                            currentExportOutput?.delete()
-                            currentExportOutput = null
-                            finishService(error = true)
-                        }
-                    })
-                    .build()
-            }
-            exportTransformer?.start(edited, output.absolutePath)
-        } catch (_: Exception) {
-            output.delete()
-            currentExportOutput = null
-            finishService(error = true)
-        }
-    }
-
-    /**
-     * Combina o vídeo vertical como fundo e a webcam como segunda faixa,
-     * usando exatamente a região que o usuário selecionou na tela de captura.
-     */
-    private fun startCombinedExport(source: File) {
-        val directory = source.parentFile ?: run { finishService(error = true); return }
-        val base = source.nameWithoutExtension
-        val verticalFile = File(directory, "${base}_9x16.mp4")
-        val webcamFile = File(directory, "${base}_webcam_personalizada.mp4")
-        val combinedFile = File(directory, "${base}_combined.mp4")
-
-        if (!verticalFile.exists() || verticalFile.length() == 0L ||
-            !webcamFile.exists() || webcamFile.length() == 0L
+        val main = mainOutputFile
+        val webcam = webcamOutputFile
+        if (main == null || webcam == null || !main.exists() || !webcam.exists() ||
+            main.length() == 0L || webcam.length() == 0L
         ) {
             finishService(error = true)
             return
         }
+        updateNotice("Combinando vídeo vertical e webcam...")
+        startCombinedExport(main)
+    }
 
-        val sourceAspect = if (captureWidth > 0 && captureHeight > 0) {
-            captureWidth.toFloat() / captureHeight.toFloat()
-        } else 16f / 9f
-
-        val targetAspect = 9f / 16f
-        var verticalLeft = 0f
-        var verticalTop = 0f
-        var verticalWidth = 1f
-        var verticalHeight = 1f
-
-        if (sourceAspect > targetAspect) {
-            verticalWidth = (targetAspect / sourceAspect).coerceIn(0.01f, 1f)
-            // Reutiliza exatamente o enquadramento central usado no arquivo 9:16.
-            // Não usa a posição da webcam para decidir qual parte da live será mostrada.
-            val centerX = 0.5f.coerceIn(verticalWidth / 2f, 1f - verticalWidth / 2f)
-            verticalLeft = centerX - verticalWidth / 2f
-        } else {
-            verticalHeight = (sourceAspect / targetAspect).coerceIn(0.01f, 1f)
-            val centerY = 0.5f.coerceIn(verticalHeight / 2f, 1f - verticalHeight / 2f)
-            verticalTop = centerY - verticalHeight / 2f
-        }
-
-        val selectedWidth = cropWidth.coerceIn(0.01f, 1f)
-        val selectedHeight = cropHeight.coerceIn(0.01f, 1f)
-        val webcamLeft = cropX.coerceIn(0f, 1f - selectedWidth)
-        val webcamTop = cropY.coerceIn(0f, 1f - selectedHeight)
-
-        val centerXInVertical = (
-            (webcamLeft + selectedWidth / 2f - verticalLeft) / verticalWidth
-        ).coerceIn(0f, 1f)
-        val centerYInVertical = (
-            (webcamTop + selectedHeight / 2f - verticalTop) / verticalHeight
-        ).coerceIn(0f, 1f)
-        val overlayWidth = (selectedWidth / verticalWidth).coerceIn(0.02f, 1f)
-        val overlayHeight = (selectedHeight / verticalHeight).coerceIn(0.02f, 1f)
+    private fun startCombinedExport(mainFile: File) {
+        val webcamFile = webcamOutputFile ?: run { finishService(error = true); return }
+        val combinedFile = combinedOutputFile ?: run { finishService(error = true); return }
+        val centerX = ((webcamX + webcamWidth / 2f - mainX) / mainWidth).coerceIn(0f, 1f)
+        val centerY = ((webcamY + webcamHeight / 2f - mainY) / mainHeight).coerceIn(0f, 1f)
+        val overlayWidth = (webcamWidth / mainWidth).coerceIn(0.02f, 1f)
+        val overlayHeight = (webcamHeight / mainHeight).coerceIn(0.02f, 1f)
 
         currentExportOutput = combinedFile
-        isCombinedExport = true
-        updateNotice("Combinando vídeo vertical e webcam automaticamente...")
-
+        updateNotice("Combinando as duas gravações...")
         try {
-            val mainItem = EditedMediaItem.Builder(
-                MediaItem.fromUri(Uri.fromFile(verticalFile))
-            ).build()
-            val webcamItem = EditedMediaItem.Builder(
-                MediaItem.fromUri(Uri.fromFile(webcamFile))
-            ).setRemoveAudio(true).build()
-
-            // Media3 draws the first sequence on top of the later sequences.
-            // Put the square webcam first (foreground) and the vertical video second (background).
+            val mainItem = EditedMediaItem.Builder(MediaItem.fromUri(Uri.fromFile(mainFile))).build()
+            val webcamItem = EditedMediaItem.Builder(MediaItem.fromUri(Uri.fromFile(webcamFile)))
+                .setRemoveAudio(true).build()
             val webcamSequence = EditedMediaItemSequence.Builder(webcamItem).build()
             val mainSequence = EditedMediaItemSequence.Builder(mainItem).build()
-
-            val compositorSettings = object : VideoCompositorSettings {
+            val compositor = object : VideoCompositorSettings {
                 override fun getOutputSize(inputSizes: List<Size>): Size {
-                    // The second input is the vertical background and defines the final 9:16 size.
-                    return inputSizes.getOrNull(1)
-                        ?: Size(captureWidth.coerceAtLeast(2), captureHeight.coerceAtLeast(2))
+                    return inputSizes.getOrNull(1) ?: Size(720, 1280)
                 }
 
-                override fun getOverlaySettings(
-                    inputId: Int,
-                    presentationTimeUs: Long
-                ): OverlaySettings {
-                    // Input 0 is the webcam foreground; input 1 is the full-frame vertical background.
+                override fun getOverlaySettings(inputId: Int, presentationTimeUs: Long): OverlaySettings {
                     if (inputId != 0) return OverlaySettings.Builder().build()
                     return OverlaySettings.Builder()
                         .setOverlayFrameAnchor(0f, 0f)
-                        .setBackgroundFrameAnchor(
-                            centerXInVertical * 2f - 1f,
-                            1f - centerYInVertical * 2f
-                        )
-                        // Independent scales preserve the user-selected rectangular crop.
+                        .setBackgroundFrameAnchor(centerX * 2f - 1f, 1f - centerY * 2f)
                         .setScale(overlayWidth, overlayHeight)
                         .build()
                 }
             }
-
             val composition = Composition.Builder(webcamSequence, mainSequence)
-                .setVideoCompositorSettings(compositorSettings)
+                .setVideoCompositorSettings(compositor)
                 .build()
+            exportTransformer = Transformer.Builder(this)
+                .addListener(object : Transformer.Listener {
+                    override fun onCompleted(composition: Composition, exportResult: ExportResult) {
+                        currentExportOutput = null
+                        finishService()
+                    }
 
+                    override fun onError(
+                        composition: Composition,
+                        exportResult: ExportResult,
+                        exportException: ExportException
+                    ) {
+                        currentExportOutput?.delete()
+                        currentExportOutput = null
+                        finishService(error = true)
+                    }
+                }).build()
             exportTransformer?.start(composition, combinedFile.absolutePath)
-                ?: throw IllegalStateException("Processador de vídeo indisponível.")
         } catch (_: Exception) {
             combinedFile.delete()
             currentExportOutput = null
-            isCombinedExport = false
             finishService(error = true)
         }
     }
 
     private fun releaseCaptureResources(stopProjection: Boolean) {
-        try { recorder?.stop() } catch (_: Exception) {}
         try { virtualDisplay?.release() } catch (_: Exception) {}
-        try { recorder?.reset() } catch (_: Exception) {}
-        try { recorder?.release() } catch (_: Exception) {}
-        if (stopProjection) try { projection?.stop() } catch (_: Exception) {}
-        recorder = null
         virtualDisplay = null
+        try { dualRecorder?.release() } catch (_: Exception) {}
+        dualRecorder = null
+        if (stopProjection) try { projection?.stop() } catch (_: Exception) {}
         projection = null
     }
 
     private fun publishExportsToGallery(): Int {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return 0
-        val source = outputFile ?: return 0
-        val directory = source.parentFile ?: return 0
-        val prefix = source.nameWithoutExtension
-        val exports = directory.listFiles { file ->
-            file.isFile && file.extension.equals("mp4", true) &&
-                (file.name == source.name || file.name.startsWith("${prefix}_"))
-        }?.sortedBy { it.name } ?: return 0
+        val main = mainOutputFile ?: return 0
+        val directory = main.parentFile ?: return 0
+        val files = listOfNotNull(mainOutputFile, webcamOutputFile, combinedOutputFile)
+            .filter { it.isFile && it.length() > 0L }
         var published = 0
-        for (file in exports) {
-            var itemUri: Uri? = null
+        for (file in files) {
+            var uri: Uri? = null
             try {
                 val values = ContentValues().apply {
                     put(MediaStore.Video.Media.DISPLAY_NAME, file.name)
@@ -456,18 +307,16 @@ class ScreenCaptureService : Service() {
                     put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/SMART RECORDER")
                     put(MediaStore.Video.Media.IS_PENDING, 1)
                 }
-                itemUri = contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
-                    ?: continue
+                uri = contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: continue
                 FileInputStream(file).use { input ->
-                    contentResolver.openOutputStream(itemUri!!, "w")!!.use { output ->
-                        input.copyTo(output)
-                    }
+                    contentResolver.openOutputStream(uri!!, "w")!!.use { output -> input.copyTo(output) }
                 }
-                val ready = ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }
-                contentResolver.update(itemUri!!, ready, null, null)
+                contentResolver.update(uri!!, ContentValues().apply {
+                    put(MediaStore.Video.Media.IS_PENDING, 0)
+                }, null, null)
                 published++
             } catch (_: Exception) {
-                itemUri?.let { try { contentResolver.delete(it, null, null) } catch (_: Exception) {} }
+                uri?.let { try { contentResolver.delete(it, null, null) } catch (_: Exception) {} }
             }
         }
         return published
@@ -476,21 +325,16 @@ class ScreenCaptureService : Service() {
     private fun finishService(error: Boolean = false) {
         if (error) currentExportOutput?.delete()
         currentExportOutput = null
-        val publishedCount = if (!error) publishExportsToGallery() else 0
-        val resultText = if (error && exportStage >= 2) {
-            "Não foi possível combinar os vídeos. Os arquivos vertical e webcam foram mantidos."
-        } else if (error) {
-            "Não foi possível concluir os recortes. A gravação original foi mantida."
-        } else if (publishedCount > 0) {
-            "Vídeos concluídos. $publishedCount arquivo(s) salvo(s) em Filmes/SMART RECORDER."
-        } else {
-            "Vídeos concluídos no armazenamento do aplicativo."
+        val count = if (!error) publishExportsToGallery() else 0
+        val message = when {
+            error -> "Não foi possível finalizar a composição. Os recortes capturados foram preservados quando válidos."
+            count > 0 -> "Concluído: $count vídeos salvos em Filmes/SMART RECORDER."
+            else -> "Capturas concluídas no armazenamento do aplicativo."
         }
-        try { projection?.stop() } catch (_: Exception) {}
-        projection = null
+        try { exportTransformer?.cancel() } catch (_: Exception) {}
         exportTransformer = null
         stopForeground(STOP_FOREGROUND_REMOVE)
-        showResultNotification(resultText)
+        showResultNotification(message)
         stopSelf()
     }
 
@@ -498,18 +342,16 @@ class ScreenCaptureService : Service() {
         val channelId = "smart_recorder_capture"
         val manager = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            manager.createNotificationChannel(
-                NotificationChannel(channelId, "SMART RECORDER", NotificationManager.IMPORTANCE_LOW)
-            )
+            manager.createNotificationChannel(NotificationChannel(channelId, "SMART RECORDER", NotificationManager.IMPORTANCE_LOW))
         }
-        val resultNotification = Notification.Builder(this, channelId)
+        val result = Notification.Builder(this, channelId)
             .setContentTitle("SMART RECORDER")
             .setContentText(message)
             .setSmallIcon(android.R.drawable.presence_video_online)
             .setAutoCancel(true)
             .setOngoing(false)
             .build()
-        manager.notify(RESULT_NOTIFICATION_ID, resultNotification)
+        manager.notify(RESULT_NOTIFICATION_ID, result)
     }
 
     override fun onDestroy() {
@@ -522,6 +364,10 @@ class ScreenCaptureService : Service() {
         const val ACTION_STOP = "com.smartteck.smartrecorder.action.STOP_CAPTURE"
         const val EXTRA_RESULT_CODE = "capture_result_code"
         const val EXTRA_RESULT_DATA = "capture_result_data"
+        const val EXTRA_MAIN_X = "main_crop_x"
+        const val EXTRA_MAIN_Y = "main_crop_y"
+        const val EXTRA_MAIN_WIDTH = "main_crop_width"
+        const val EXTRA_MAIN_HEIGHT = "main_crop_height"
         const val EXTRA_CROP_X = "crop_x"
         const val EXTRA_CROP_Y = "crop_y"
         const val EXTRA_CROP_WIDTH = "crop_width"
