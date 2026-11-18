@@ -335,14 +335,22 @@ internal class DualRegionRecorder(
     }
 
     private fun outputWidth(w: Float, h: Float): Int {
-        val ratio = (sourceWidth * w) / (sourceHeight * h).coerceAtLeast(1f)
-        return if (ratio >= 1f) 720 else (720f * ratio).toInt().coerceAtLeast(2) / 2 * 2
+        val ratio = regionAspectRatio(w, h)
+        val longSide = if (ratio in 0.8f..1.25f) 720f else 1280f
+        val width = if (ratio >= 1f) longSide else longSide * ratio
+        return width.toInt().coerceAtLeast(2) / 2 * 2
     }
 
     private fun outputHeight(w: Float, h: Float): Int {
-        val ratio = (sourceWidth * w) / (sourceHeight * h).coerceAtLeast(1f)
-        return if (ratio >= 1f) (720f / ratio).toInt().coerceAtLeast(2) / 2 * 2 else 720
+        val ratio = regionAspectRatio(w, h)
+        val longSide = if (ratio in 0.8f..1.25f) 720f else 1280f
+        val height = if (ratio >= 1f) longSide / ratio else longSide
+        return height.toInt().coerceAtLeast(2) / 2 * 2
     }
+
+    private fun regionAspectRatio(w: Float, h: Float): Float =
+        (sourceWidth.toFloat() * w.coerceAtLeast(0.001f)) /
+            (sourceHeight.toFloat() * h.coerceAtLeast(0.001f))
 
     private fun floatBuffer(values: FloatArray): FloatBuffer =
         ByteBuffer.allocateDirect(values.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().apply {
