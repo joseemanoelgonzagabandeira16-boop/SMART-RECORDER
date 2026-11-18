@@ -132,7 +132,7 @@ private fun CaptureScreen() {
                     verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(7.dp).clip(CircleShape).background(Accent))
                     Spacer(Modifier.width(6.dp))
-                    Text("PRONTO", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("PROTÓTIPO", color = Accent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
