@@ -283,7 +283,7 @@ private fun CaptureScreen() {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("DUAS ÁREAS DE CAPTURA", color = TextMain, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text("Azul: vídeo vertical 9:16 • Verde: webcam. Arraste cada quadro separadamente.", color = TextMuted, fontSize = 12.sp)
+                        Text("Azul: vídeo vertical 9:16 • Verde: webcam. Arraste os quadros para mover e puxe o canto verde para redimensionar a webcam.", color = TextMuted, fontSize = 12.sp)
                     }
                     Icon(Icons.Default.Tune, contentDescription = null, tint = Accent)
                 }
@@ -429,10 +429,23 @@ private fun PreviewSelector(
                 Icon(Icons.Default.FolderOpen, contentDescription = null, tint = TextMain, modifier = Modifier.size(19.dp))
                 Text("WEBCAM", color = TextMain, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             }
-            Text("↘", color = Page, fontSize = 14.sp, modifier = Modifier.align(Alignment.BottomEnd)
-                .clip(CircleShape).background(Accent).padding(horizontal = 4.dp))
+            Text("↘", color = Page, fontSize = 14.sp,
+                modifier = Modifier.align(Alignment.BottomEnd)
+                    .pointerInput(maxWidth, maxHeight) {
+                        detectDragGestures { change, drag ->
+                            change.consume()
+                            val ph = with(density) { maxHeight.toPx() }
+                            val nextHeight = (currentWebcamHeight + drag.y / ph)
+                                .coerceIn(0.08f, 0.8f)
+                            val nextWidth = nextHeight * 9f / 16f
+                            val nextX = currentWebcamX.coerceIn(0f, 1f - nextWidth)
+                            val nextY = currentWebcamY.coerceIn(0f, 1f - nextHeight)
+                            onWebcamChange(nextX, nextY, nextWidth, nextHeight)
+                        }
+                    }
+                    .clip(CircleShape).background(Accent).padding(horizontal = 4.dp))
         }
-        Text("ARRASTE PARA MOVER • AJUSTE LARGURA E ALTURA ABAIXO", color = Accent, fontSize = 7.sp, fontWeight = FontWeight.Bold,
+        Text("ARRASTE PARA MOVER • PUXE O CANTO VERDE PARA REDIMENSIONAR", color = Accent, fontSize = 7.sp, fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp).background(Color(0xCC08111D)).padding(4.dp))
     }
 }
