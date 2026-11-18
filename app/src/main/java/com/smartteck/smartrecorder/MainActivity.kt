@@ -121,14 +121,15 @@ private fun CaptureScreen() {
     val cropPreferences = remember(context) {
         context.getSharedPreferences("smart_recorder_crop", android.content.Context.MODE_PRIVATE)
     }
-    var webcamX by remember(cropPreferences) {
-        mutableFloatStateOf(cropPreferences.getFloat("webcam_x", 0.58f).coerceIn(0f, 0.80f))
-    }
-    var webcamY by remember(cropPreferences) {
-        mutableFloatStateOf(cropPreferences.getFloat("webcam_y", 0.12f).coerceIn(0f, 0.80f))
-    }
     var webcamSize by remember(cropPreferences) {
         mutableFloatStateOf(cropPreferences.getFloat("webcam_size", 0.31f).coerceIn(0.20f, 0.48f))
+    }
+    var webcamX by remember(cropPreferences) {
+        mutableFloatStateOf(cropPreferences.getFloat("webcam_x", 0.58f).coerceIn(0f, 1f - webcamSize))
+    }
+    var webcamY by remember(cropPreferences) {
+        mutableFloatStateOf(cropPreferences.getFloat("webcam_y", 0.12f)
+            .coerceIn(0f, 1f - (16f / 9f) * webcamSize))
     }
     var regionSaved by remember(cropPreferences) {
         mutableStateOf(cropPreferences.contains("webcam_x") &&
@@ -264,7 +265,7 @@ private fun CaptureScreen() {
                 Slider(value = webcamSize, onValueChange = {
                     webcamSize = it.coerceIn(0.20f, 0.48f)
                     webcamX = webcamX.coerceIn(0f, 1f - webcamSize)
-                    webcamY = webcamY.coerceIn(0f, 1f - webcamSize)
+                    webcamY = webcamY.coerceIn(0f, 1f - (16f / 9f) * webcamSize)
                     regionSaved = false
                 }, valueRange = 0.20f..0.48f)
                 OutlinedButton(onClick = {
@@ -325,7 +326,7 @@ private fun PreviewSelector(webcamX: Float, webcamY: Float, webcamSize: Float, o
                         val parentWidth = with(density) { maxWidth.toPx() }
                         val parentHeight = with(density) { maxHeight.toPx() }
                         val nextX = (currentWebcamX + dragAmount.x / parentWidth).coerceIn(0f, 1f - webcamSize)
-                        val nextY = (currentWebcamY + dragAmount.y / parentHeight).coerceIn(0f, 1f - webcamSize)
+                        val nextY = (currentWebcamY + dragAmount.y / parentHeight).coerceIn(0f, 1f - (16f / 9f) * webcamSize)
                         currentOnPositionChange(nextX, nextY)
                     }
                 },
