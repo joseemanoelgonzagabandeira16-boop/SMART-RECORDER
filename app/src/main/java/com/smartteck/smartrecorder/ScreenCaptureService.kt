@@ -208,21 +208,20 @@ class ScreenCaptureService : Service() {
         try { virtualDisplay?.release() } catch (_: Exception) {}
         virtualDisplay = null
         val pipeline = dualRecorder
+        var captureStopFailed = false
         try {
             pipeline?.stop()
         } catch (_: Exception) {
-            dualRecorder = null
-            finishService(error = true)
-            return
+            captureStopFailed = true
         }
         dualRecorder = null
-        if (pipeline?.failure() != null) {
-            finishService(error = true)
-            return
-        }
         if (projectionAlreadyStopped) projection = null
         try { projection?.stop() } catch (_: Exception) {}
         projection = null
+        if (captureStopFailed || pipeline?.failure() != null) {
+            finishService(error = true)
+            return
+        }
 
         val main = mainOutputFile
         val webcam = webcamOutputFile
