@@ -177,12 +177,12 @@ class ScreenCaptureService : Service() {
                 }
             }, Handler(Looper.getMainLooper()))
 
+            pipeline.start()
             virtualDisplay = projection!!.createVirtualDisplay(
                 "SMART_RECORDER_DUAL_REGION", captureWidth, captureHeight, metrics.densityDpi,
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                 pipeline.projectionSurface, null, Handler(Looper.getMainLooper())
             ) ?: error("Não foi possível conectar a captura à tela.")
-            pipeline.start()
 
             if (recordingDurationMs > 0L) {
                 autoStopTask = Runnable { finishCapture() }
