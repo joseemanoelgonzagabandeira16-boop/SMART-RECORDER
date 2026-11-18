@@ -2,8 +2,11 @@ package com.smartteck.smartrecorder
 
 import android.content.Intent
 import android.net.Uri
+import android.media.projection.MediaProjectionManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -110,6 +113,20 @@ private fun CaptureScreen() {
     var webcamY by remember { mutableFloatStateOf(0.12f) }
     var webcamSize by remember { mutableFloatStateOf(0.31f) }
     var regionSaved by remember { mutableStateOf(false) }
+    var captureRunning by remember { mutableStateOf(false) }
+    val projectionManager = remember { context.getSystemService(android.content.Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager }
+    val capturePermission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val data = result.data
+        if (result.resultCode == android.app.Activity.RESULT_OK && data != null) {
+            val captureIntent = Intent(context, ScreenCaptureService::class.java).apply {
+                action = ScreenCaptureService.ACTION_START
+                putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
+                putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data)
+            }
+            context.startForegroundService(captureIntent)
+            captureRunning = true
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -171,6 +188,31 @@ private fun CaptureScreen() {
             }
         }
         item {
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(22.dp),
+                border = BorderStroke(1.dp, if (captureRunning) Accent else Color(0xFF24334A))) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                    Text("CAPTURA DA TELA", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                    Text(if (captureRunning) "Captura em andamento" else "Pronto para capturar", color = TextMain, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    Text("O Android solicitará sua autorização. Depois, volte ao YouTube para exibir a transmissão.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
+                    Button(
+                        onClick = {
+                            if (captureRunning) {
+                                context.startService(Intent(context, ScreenCaptureService::class.java).setAction(ScreenCaptureService.ACTION_STOP))
+                                captureRunning = false
+                            } else {
+                                capturePermission.launch(projectionManager.createScreenCaptureIntent())
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (captureRunning) Color(0xFFE35D6A) else Accent, contentColor = Page)
+                    ) {
+                        Text(if (captureRunning) "PARAR CAPTURA" else "INICIAR CAPTURA", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -205,7 +247,7 @@ private fun CaptureScreen() {
                     OutputTile("9:16", "Vídeo vertical", Modifier.weight(1f))
                     OutputTile("1:1", "Área da webcam", Modifier.weight(1f))
                 }
-                Text("Prévia de interface: os controles de gravação e processamento serão conectados às permissões e serviços nativos nas próximas etapas.",
+                Text("A captura inicial grava a tela em MP4 no armazenamento privado do aplicativo. Áudio e exportação dos dois enquadramentos serão integrados depois.",
                     color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
             }
         }
