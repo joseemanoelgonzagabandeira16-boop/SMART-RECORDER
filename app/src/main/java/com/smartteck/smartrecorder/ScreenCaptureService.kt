@@ -207,8 +207,19 @@ class ScreenCaptureService : Service() {
         autoStopTask = null
         try { virtualDisplay?.release() } catch (_: Exception) {}
         virtualDisplay = null
-        try { dualRecorder?.stop() } catch (_: Exception) {}
+        val pipeline = dualRecorder
+        try {
+            pipeline?.stop()
+        } catch (_: Exception) {
+            dualRecorder = null
+            finishService(error = true)
+            return
+        }
         dualRecorder = null
+        if (pipeline?.failure() != null) {
+            finishService(error = true)
+            return
+        }
         if (projectionAlreadyStopped) projection = null
         try { projection?.stop() } catch (_: Exception) {}
         projection = null
