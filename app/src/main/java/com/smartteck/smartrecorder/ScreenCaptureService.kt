@@ -115,14 +115,17 @@ class ScreenCaptureService : Service() {
             val metrics = DisplayMetrics()
             @Suppress("DEPRECATION")
             (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(metrics)
-            val width = (metrics.widthPixels / 2) * 2
-            val height = (metrics.heightPixels / 2) * 2
+            // Limita o maior lado a 1920 px para melhorar a compatibilidade com encoders móveis.
+            val sourceMaxSide = maxOf(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(2)
+            val scale = minOf(1f, 1920f / sourceMaxSide.toFloat())
+            val width = ((metrics.widthPixels * scale).toInt() / 2 * 2).coerceAtLeast(2)
+            val height = ((metrics.heightPixels * scale).toInt() / 2 * 2).coerceAtLeast(2)
             captureWidth = width
             captureHeight = height
             val directory = getExternalFilesDir(Environment.DIRECTORY_MOVIES)
                 ?: throw IllegalStateException("Pasta de vídeos indisponível.")
             if (!directory.exists()) directory.mkdirs()
-            val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
             outputFile = File(directory, "SMART_RECORDER_$stamp.mp4")
             val mediaRecorder = if (Build.VERSION.SDK_INT >= 31) MediaRecorder(this) else MediaRecorder()
             recorder = mediaRecorder
@@ -144,8 +147,10 @@ class ScreenCaptureService : Service() {
                 mediaRecorder.surface, null, Handler(Looper.getMainLooper()))
             mediaRecorder.start()
         } catch (_: Exception) {
+            outputFile?.delete()
             releaseCaptureResources(stopProjection = true)
             stopForeground(STOP_FOREGROUND_REMOVE)
+            showResultNotification("Não foi possível iniciar a captura. Verifique a autorização e tente novamente.")
             stopSelf()
         }
     }
@@ -166,7 +171,7 @@ class ScreenCaptureService : Service() {
         if (projectionAlreadyStopped) projection = null
         val source = outputFile
         if (source == null || !source.exists() || source.length() == 0L) {
-            finishService()
+            finishService(error = true)
             return
         }
         updateNotice("Preparando vídeo vertical e webcam...")
