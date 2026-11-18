@@ -195,6 +195,7 @@ internal class DualRegionRecorder(
                 textureSurface?.release()
                 textureSurface = null
                 if (eglDisplay != EGL14.EGL_NO_DISPLAY) {
+                    if (mainEglSurface != EGL14.EGL_NO_SURFACE) makeCurrent(mainEglSurface)
                     if (mainEglSurface != EGL14.EGL_NO_SURFACE) EGL14.eglDestroySurface(eglDisplay, mainEglSurface)
                     if (webcamEglSurface != EGL14.EGL_NO_SURFACE) EGL14.eglDestroySurface(eglDisplay, webcamEglSurface)
                     if (program != 0) GLES20.glDeleteProgram(program)
