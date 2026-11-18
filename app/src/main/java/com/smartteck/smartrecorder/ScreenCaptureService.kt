@@ -299,7 +299,7 @@ class ScreenCaptureService : Service() {
         val directory = source.parentFile ?: run { finishService(error = true); return }
         val base = source.nameWithoutExtension
         val verticalFile = File(directory, "${base}_9x16.mp4")
-        val webcamFile = File(directory, "${base}_webcam_1x1.mp4")
+        val webcamFile = File(directory, "${base}_webcam_personalizada.mp4")
         val combinedFile = File(directory, "${base}_combined.mp4")
 
         if (!verticalFile.exists() || verticalFile.length() == 0L ||
