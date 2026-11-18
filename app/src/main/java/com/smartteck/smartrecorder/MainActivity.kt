@@ -8,6 +8,7 @@ import android.media.projection.MediaProjectionManager
 import android.os.Environment
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.core.content.FileProvider
@@ -261,6 +262,25 @@ private fun CaptureScreen() {
                         Text("Arraste o quadro até cobrir a webcam na referência 16:9", color = TextMuted, fontSize = 12.sp)
                     }
                     Icon(Icons.Default.Tune, contentDescription = null, tint = Accent)
+                }
+                OutlinedButton(
+                    onClick = {
+                        if (!Settings.canDrawOverlays(context)) {
+                            val permissionIntent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:" + context.packageName))
+                            context.startActivity(permissionIntent)
+                            Toast.makeText(context, "Autorize a sobreposição e toque novamente em MOLDURA FLUTUANTE.", Toast.LENGTH_LONG).show()
+                        } else {
+                            context.startService(Intent(context, RegionOverlayService::class.java).setAction(RegionOverlayService.ACTION_SHOW))
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                    shape = RoundedCornerShape(13.dp),
+                    border = BorderStroke(1.dp, Accent)
+                ) {
+                    Icon(Icons.Default.Tune, contentDescription = null, tint = Accent)
+                    Spacer(Modifier.width(8.dp))
+                    Text("POSICIONAR MOLDURA SOBRE O YOUTUBE", color = Accent, fontWeight = FontWeight.Bold)
                 }
                 PreviewSelector(webcamX, webcamY, webcamWidth, webcamHeight, onChange = { x, y, w, h ->
                     webcamX = x; webcamY = y; webcamWidth = w; webcamHeight = h; regionSaved = false
