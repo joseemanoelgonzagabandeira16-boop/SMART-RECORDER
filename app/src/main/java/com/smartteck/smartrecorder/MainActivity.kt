@@ -88,6 +88,7 @@ private val Accent = Color(0xFF42D6B5)
 private val TextMain = Color(0xFFF4F7FC)
 private val TextMuted = Color(0xFF91A0B8)
 
+@UnstableApi
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -95,6 +96,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@UnstableApi
 @Composable
 private fun SmartRecorderApp() {
     var selectedTab by remember { mutableStateOf(0) }
