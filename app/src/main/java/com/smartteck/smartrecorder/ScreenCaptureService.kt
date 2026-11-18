@@ -149,9 +149,20 @@ class ScreenCaptureService : Service() {
             outputFile = File(directory, "SMART_RECORDER_$stamp.mp4")
             val mediaRecorder = if (Build.VERSION.SDK_INT >= 31) MediaRecorder(this) else MediaRecorder()
             recorder = mediaRecorder
+            val hasMicrophonePermission = checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (hasMicrophonePermission) {
+                mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            }
             mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
             mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+            if (hasMicrophonePermission) {
+                mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                mediaRecorder.setAudioSamplingRate(44_100)
+                mediaRecorder.setAudioEncodingBitRate(128_000)
+                mediaRecorder.setAudioChannels(1)
+            }
             mediaRecorder.setVideoSize(width, height)
             mediaRecorder.setVideoFrameRate(30)
             mediaRecorder.setVideoEncodingBitRate(8_000_000)
