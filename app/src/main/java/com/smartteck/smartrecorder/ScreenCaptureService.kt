@@ -22,11 +22,10 @@ import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import androidx.media3.common.MediaItem
-import androidx.media3.common.OverlaySettings
-import androidx.media3.common.VideoCompositorSettings
+import androidx.media3.effect.OverlaySettings
+import androidx.media3.effect.VideoCompositorSettings
 import androidx.media3.common.util.Size
 import androidx.media3.effect.Crop
-import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.transformer.Effects
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.transformer.Composition
@@ -346,8 +345,8 @@ class ScreenCaptureService : Service() {
                 MediaItem.fromUri(Uri.fromFile(webcamFile))
             ).setRemoveAudio(true).build()
 
-            val mainSequence = EditedMediaItemSequence.withAudioAndVideoFrom(listOf(mainItem))
-            val webcamSequence = EditedMediaItemSequence.withVideoFrom(listOf(webcamItem))
+            val mainSequence = EditedMediaItemSequence.Builder(mainItem).build()
+            val webcamSequence = EditedMediaItemSequence.Builder(webcamItem).build()
 
             val compositorSettings = object : VideoCompositorSettings {
                 override fun getOutputSize(inputSizes: List<Size>): Size {
@@ -358,8 +357,8 @@ class ScreenCaptureService : Service() {
                     inputId: Int,
                     presentationTimeUs: Long
                 ): OverlaySettings {
-                    if (inputId == 0) return StaticOverlaySettings.Builder().build()
-                    return StaticOverlaySettings.Builder()
+                    if (inputId == 0) return OverlaySettings.Builder().build()
+                    return OverlaySettings.Builder()
                         .setOverlayFrameAnchor(0f, 0f)
                         .setBackgroundFrameAnchor(
                             centerXInVertical * 2f - 1f,
