@@ -50,9 +50,7 @@ class ScreenCaptureService : Service() {
         val stopIntent = PendingIntent.getService(this, 2,
             Intent(this, ScreenCaptureService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, channelId)
-            else @Suppress("DEPRECATION") Notification.Builder(this)
-        val notification = builder.setContentTitle("SMART RECORDER")
+        val notification = Notification.Builder(this, channelId).setContentTitle("SMART RECORDER")
             .setContentText("Captura de tela em andamento")
             .setSmallIcon(android.R.drawable.presence_video_online)
             .addAction(Notification.Action.Builder(null, "Parar", stopIntent).build())
