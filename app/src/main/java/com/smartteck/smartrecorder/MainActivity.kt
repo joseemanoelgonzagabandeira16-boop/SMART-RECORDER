@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
+import androidx.media3.common.util.UnstableApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -120,6 +121,7 @@ private fun SmartRecorderApp() {
     }
 }
 
+@OptIn(UnstableApi::class)
 @Composable
 private fun CaptureScreen() {
     val context = LocalContext.current
