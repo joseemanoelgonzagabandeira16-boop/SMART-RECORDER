@@ -121,7 +121,7 @@ private fun SmartRecorderApp() {
     }
 }
 
-@OptIn(UnstableApi::class)
+@UnstableApi
 @Composable
 private fun CaptureScreen() {
     val context = LocalContext.current
