@@ -9,6 +9,7 @@ Aplicativo Android nativo para captura local de transmissões exibidas no aplica
 - Telas separadas para Captura, Vídeos e Ajustes.
 - Fluxo de autorização MediaProjection do Android.
 - Serviço em primeiro plano para gravar a tela em MP4 enquanto o usuário usa outro aplicativo.
+- Processamento local com Media3 Transformer para exportar um recorte vertical 9:16 e um recorte quadrado 1:1 a partir da região selecionada.
 - Tela de vídeos lista as capturas MP4 locais e permite abri-las no reprodutor instalado.
 - Compartilhamento dos arquivos por FileProvider, sem expor caminhos internos do aplicativo.
 - Arquivos de captura gravados na pasta privada de vídeos do SMART RECORDER.
@@ -22,8 +23,9 @@ Aplicativo Android nativo para captura local de transmissões exibidas no aplica
 ## Limitações desta etapa
 - A captura atual grava a tela inteira em um único MP4.
 - Esta primeira versão ainda não grava áudio.
-- O quadrado de webcam ainda é uma configuração visual; ele ainda não recorta a transmissão real.
-- A geração dos dois arquivos finais (vídeo 9:16 e webcam 1:1), a integração do recorte real e a sincronização de áudio ainda serão implementadas.
+- O recorte usa a posição configurada sobre uma prévia 16:9; é necessário validar o alinhamento em aparelhos e orientações diferentes.
+- A captura ainda é somente vídeo, sem áudio do sistema ou microfone.
+- A exportação é sequencial e depende dos codecs de vídeo disponíveis no aparelho; falhas de exportação mantêm a gravação original.
 - O Android sempre apresenta seu próprio diálogo de autorização para captura de tela; o aplicativo não pode ignorá-lo.
 
 ## Compilação
