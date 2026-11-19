@@ -1,5 +1,9 @@
 package com.smartteck.smartrecorder
 
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioPlaybackCaptureConfiguration
@@ -15,6 +19,7 @@ import java.io.RandomAccessFile
  * It writes temporary PCM WAV audio; the service later muxes it with the cropped video.
  */
 internal class PlaybackAudioRecorder(
+    context: Context,
     private val projection: MediaProjection,
     private val outputFile: File
 ) {
@@ -30,6 +35,9 @@ internal class PlaybackAudioRecorder(
     @Volatile private var readFailure: Throwable? = null
 
     init {
+        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            throw SecurityException("Permissão de áudio não concedida.")
+        }
         check(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             "A captura de áudio interno exige Android 10 ou superior."
         }
@@ -47,11 +55,13 @@ internal class PlaybackAudioRecorder(
             .addMatchingUsage(AudioAttributes.USAGE_GAME)
             .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
             .build()
-        audioRecord = AudioRecord.Builder()
+        @SuppressLint("MissingPermission")
+        val builtRecorder = AudioRecord.Builder()
             .setAudioFormat(format)
             .setBufferSizeInBytes(maxOf(minBuffer * 2, 16_384))
             .setAudioPlaybackCaptureConfig(config)
             .build()
+        audioRecord = builtRecorder
         check(audioRecord.state == AudioRecord.STATE_INITIALIZED) {
             "Não foi possível inicializar a captura de áudio interno."
         }
