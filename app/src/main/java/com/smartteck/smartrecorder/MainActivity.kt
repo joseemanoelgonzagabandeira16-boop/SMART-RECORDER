@@ -152,11 +152,16 @@ private fun CaptureScreen() {
     var webcamX by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("webcam_x", 0.78f).coerceIn(0f, 1f - webcamWidth)) }
     var webcamY by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("webcam_y", 0.64f).coerceIn(0f, 1f - webcamHeight)) }
     var captureRunning by remember { mutableStateOf(false) }
+    val playerContainer = remember(context) { YouTubePlayerContainer(context) }
+    DisposableEffect(playerContainer) { onDispose { playerContainer.release() } }
 
     DisposableEffect(context) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: android.content.Context?, intent: Intent?) {
-                if (intent?.action == ScreenCaptureService.ACTION_CAPTURE_FINISHED) captureRunning = false
+                if (intent?.action == ScreenCaptureService.ACTION_CAPTURE_FINISHED) {
+                    captureRunning = false
+                    playerContainer.seekToLive()
+                }
             }
         }
         ContextCompat.registerReceiver(context, receiver, IntentFilter(ScreenCaptureService.ACTION_CAPTURE_FINISHED), ContextCompat.RECEIVER_NOT_EXPORTED)
@@ -186,10 +191,16 @@ private fun CaptureScreen() {
                 putExtra(ScreenCaptureService.EXTRA_CROP_HEIGHT, (webcamHeight * bounds.height / screenHeight).coerceIn(0.01f, 1f))
                 putExtra(ScreenCaptureService.EXTRA_DURATION_MS, recordingMinutes.toLong() * 60_000L)
             }
-            captureRunning = true
-            val decor = (context as? android.app.Activity)?.window?.decorView
-            if (decor != null) decor.postDelayed({ context.startForegroundService(captureIntent) }, 350L)
-            else context.startForegroundService(captureIntent)
+            playerContainer.seekBack(recordingMinutes.toInt() * 60) { seekReady ->
+                if (!seekReady) {
+                    Toast.makeText(context, "Esta live não oferece 1 minuto disponível para voltar. Verifique se o DVR está ativado.", Toast.LENGTH_LONG).show()
+                    return@seekBack
+                }
+                captureRunning = true
+                val decor = (context as? android.app.Activity)?.window?.decorView
+                if (decor != null) decor.postDelayed({ context.startForegroundService(captureIntent) }, 700L)
+                else context.startForegroundService(captureIntent)
+            }
         }
     }
     val microphonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -203,6 +214,7 @@ private fun CaptureScreen() {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             PlayerCropSelector(
                 mainX, mainY, mainHeight, webcamX, webcamY, webcamWidth, webcamHeight,
+                playerContainer = playerContainer,
                 showGuides = !captureRunning,
                 onBoundsChanged = { previewBounds = it },
                 onMainChange = { x, y ->
@@ -264,6 +276,7 @@ private fun CaptureScreen() {
 
 @Composable
 private fun PlayerCropSelector(
+    playerContainer: YouTubePlayerContainer,
     mainX: Float, mainY: Float, mainHeight: Float,
     webcamX: Float, webcamY: Float, webcamWidth: Float, webcamHeight: Float,
     showGuides: Boolean,
@@ -271,9 +284,6 @@ private fun PlayerCropSelector(
     onMainChange: (Float, Float) -> Unit,
     onWebcamChange: (Float, Float, Float, Float) -> Unit
 ) {
-    val context = LocalContext.current
-    val playerContainer = remember(context) { YouTubePlayerContainer(context) }
-    DisposableEffect(playerContainer) { onDispose { playerContainer.release() } }
     val density = LocalDensity.current
     val currentMainX by rememberUpdatedState(mainX)
     val currentMainY by rememberUpdatedState(mainY)
@@ -339,6 +349,52 @@ private fun PlayerCropSelector(
 }
 
 private class YouTubePlayerContainer(context: android.content.Context) : android.widget.FrameLayout(context) {
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /** Rewinds only when the YouTube player exposes a seekable DVR window. */
+    fun seekBack(seconds: Int, callback: (Boolean) -> Unit) {
+        val safeSeconds = seconds.coerceIn(1, 14_400)
+        val prepareScript = """(function(){
+            var v=document.querySelector('video');
+            if(!v || !v.seekable || v.seekable.length===0) return -1;
+            var start=v.seekable.start(0), end=v.seekable.end(v.seekable.length-1);
+            var now=Math.min(v.currentTime,end);
+            if(!isFinite(now) || now-start < $safeSeconds-1) return -1;
+            var target=Math.max(start,now-$safeSeconds);
+            try { v.currentTime=target; return target; } catch(e) { return -1; }
+        })();""".trimIndent()
+        webView.evaluateJavascript(prepareScript) { raw ->
+            val target = raw?.toDoubleOrNull()
+            if (target == null || target < 0.0) {
+                callback(false)
+            } else {
+                waitForSeek(target, 0, callback)
+            }
+        }
+    }
+
+    private fun waitForSeek(target: Double, attempt: Int, callback: (Boolean) -> Unit) {
+        val checkScript = """(function(){var v=document.querySelector('video');
+            return !!(v && !v.seeking && v.readyState>=2 && Math.abs(v.currentTime-$target)<1.75);
+        })();""".trimIndent()
+        webView.evaluateJavascript(checkScript) { raw ->
+            if (raw == "true") callback(true)
+            else if (attempt >= 30) callback(false)
+            else mainHandler.postDelayed({ waitForSeek(target, attempt + 1, callback) }, 300L)
+        }
+    }
+
+    /** Moves playback to the newest seekable point after capture is complete. */
+    fun seekToLive() {
+        val script = """(function(){var v=document.querySelector('video');
+            if(!v || !v.seekable || v.seekable.length===0) return false;
+            var end=v.seekable.end(v.seekable.length-1);
+            try { v.currentTime=Math.max(v.seekable.start(v.seekable.length-1),end-0.25); return true; }
+            catch(e) { return false; }
+        })();""".trimIndent()
+        webView.evaluateJavascript(script, null)
+    }
+
     private var customVideoView: android.view.View? = null
     private var customViewCallback: android.webkit.WebChromeClient.CustomViewCallback? = null
     private val webView = android.webkit.WebView(context)
