@@ -222,7 +222,7 @@ private fun CaptureScreen() {
                 }
             }
         }
-        Column(Modifier.fillMaxWidth().background(Panel).padding(horizontal = 12.dp, vertical = 7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.fillMaxWidth().height(118.dp).background(Panel).padding(horizontal = 12.dp, vertical = 7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (captureRunning) {
                 Text("Gravação em andamento • encerramento automático em ${recordingMinutes.toInt()} min", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Button(onClick = {
