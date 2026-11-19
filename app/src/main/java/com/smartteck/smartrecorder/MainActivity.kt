@@ -387,8 +387,6 @@ private class YouTubePlayerContainer(context: android.content.Context) : android
             customVideoView = null
             webView.stopLoading()
             webView.loadUrl("about:blank")
-            webView.webChromeClient = null
-            webView.webViewClient = null
             webView.destroy()
         } catch (_: Exception) {}
         removeAllViews()
