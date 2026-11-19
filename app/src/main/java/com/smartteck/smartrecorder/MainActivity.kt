@@ -138,9 +138,16 @@ private fun CaptureScreen(onOpenVideos: () -> Unit, onOpenSettings: () -> Unit) 
     var minutes by remember { mutableFloatStateOf(timing.getInt("recording_minutes", 1).toFloat().coerceIn(1f, 240f)) }
     val player = remember(context) { YouTubePlayerContainer(context) }; DisposableEffect(player) { onDispose { player.release() } }
     DisposableEffect(live, activity) {
-        @Suppress("DEPRECATION")
-        activity?.window?.decorView?.systemUiVisibility = if (live) (View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION) else View.SYSTEM_UI_FLAG_VISIBLE
-        onDispose { @Suppress("DEPRECATION") activity?.window?.decorView?.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE }
+        activity?.window?.decorView?.let { decor ->
+            @Suppress("DEPRECATION")
+            decor.systemUiVisibility = if (live) (View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION) else View.SYSTEM_UI_FLAG_VISIBLE
+        }
+        onDispose {
+            activity?.window?.decorView?.let { decor ->
+                @Suppress("DEPRECATION")
+                decor.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            }
+        }
     }
     DisposableEffect(context) { val receiver = object : BroadcastReceiver() { override fun onReceive(c: android.content.Context?, i: Intent?) { if (i?.action == ScreenCaptureService.ACTION_CAPTURE_FINISHED) { running = false; preparing = false; expanded = false; player.seekToLive() } } }; ContextCompat.registerReceiver(context, receiver, IntentFilter(ScreenCaptureService.ACTION_CAPTURE_FINISHED), ContextCompat.RECEIVER_NOT_EXPORTED); onDispose { context.unregisterReceiver(receiver) } }
     val manager = remember { context.getSystemService(android.content.Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager }
