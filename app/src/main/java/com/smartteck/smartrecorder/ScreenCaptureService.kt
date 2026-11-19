@@ -183,7 +183,7 @@ class ScreenCaptureService : Service() {
             // If the platform rejects capture, retain the existing microphone fallback.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && hasRecordAudioPermission) {
                 try {
-                    playbackAudioRecorder = PlaybackAudioRecorder(projection!!, audioOutputFile!!).also { it.start() }
+                    playbackAudioRecorder = PlaybackAudioRecorder(this, projection!!, audioOutputFile!!).also { it.start() }
                 } catch (_: Exception) {
                     try { playbackAudioRecorder?.release() } catch (_: Exception) {}
                     playbackAudioRecorder = null
