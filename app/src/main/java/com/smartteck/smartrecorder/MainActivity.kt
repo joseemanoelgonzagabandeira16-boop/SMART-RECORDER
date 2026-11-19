@@ -214,10 +214,12 @@ private fun CaptureScreen() {
                     cropPreferences.edit().putFloat("webcam_x", x).putFloat("webcam_y", y).putFloat("webcam_width", w).putFloat("webcam_height", h).apply()
                 }
             )
-            Row(Modifier.align(Alignment.TopStart).padding(9.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xCC080D18)).padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("SMART RECORDER", color = TextMain, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
-                Spacer(Modifier.width(8.dp))
-                Text(if (captureRunning) "GRAVANDO" else "LIVE DO YOUTUBE", color = Accent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            if (!captureRunning) {
+                Row(Modifier.align(Alignment.TopStart).padding(9.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xCC080D18)).padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("SMART RECORDER", color = TextMain, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+                    Spacer(Modifier.width(8.dp))
+                    Text("LIVE DO YOUTUBE", color = Accent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
         Column(Modifier.fillMaxWidth().background(Panel).padding(horizontal = 12.dp, vertical = 7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
