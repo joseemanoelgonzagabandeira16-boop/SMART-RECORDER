@@ -60,6 +60,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -104,174 +105,97 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun SmartRecorderApp() {
     var selectedTab by remember { mutableStateOf(0) }
-    MaterialTheme {
-        Surface(color = Page, modifier = Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize()) {
-                Box(Modifier.weight(1f)) {
-                    when (selectedTab) {
-                        0 -> CaptureScreen()
-                        1 -> VideosScreen()
-                        else -> SettingsScreen()
-                    }
-                }
-                NavigationBar(containerColor = Color(0xFF0D1523), contentColor = TextMain) {
-                    NavigationBarItem(selected = selectedTab == 0, onClick = { selectedTab = 0 },
-                        icon = { Icon(Icons.Default.Home, contentDescription = null) }, label = { Text("Captura") })
-                    NavigationBarItem(selected = selectedTab == 1, onClick = { selectedTab = 1 },
-                        icon = { Icon(Icons.Default.VideoLibrary, contentDescription = null) }, label = { Text("Vídeos") })
-                    NavigationBarItem(selected = selectedTab == 2, onClick = { selectedTab = 2 },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = null) }, label = { Text("Ajustes") })
-                }
+    MaterialTheme { Surface(color = Page, modifier = Modifier.fillMaxSize()) {
+        if (selectedTab == 0) CaptureScreen(onOpenVideos = { selectedTab = 1 }, onOpenSettings = { selectedTab = 2 })
+        else Column(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f)) { if (selectedTab == 1) VideosScreen() else SettingsScreen() }
+            NavigationBar(containerColor = Color(0xFF0D1523), contentColor = TextMain) {
+                NavigationBarItem(false, { selectedTab = 0 }, icon = { Icon(Icons.Default.Home, null) }, label = { Text("Captura") })
+                NavigationBarItem(selectedTab == 1, { selectedTab = 1 }, icon = { Icon(Icons.Default.VideoLibrary, null) }, label = { Text("Vídeos") })
+                NavigationBarItem(selectedTab == 2, { selectedTab = 2 }, icon = { Icon(Icons.Default.Settings, null) }, label = { Text("Ajustes") })
             }
         }
-    }
+    } }
 }
-
 
 @UnstableApi
 @Composable
-private fun CaptureScreen() {
+private fun CaptureScreen(onOpenVideos: () -> Unit, onOpenSettings: () -> Unit) {
     val context = LocalContext.current
-    val cropPreferences = remember(context) { context.getSharedPreferences("smart_recorder_crop", android.content.Context.MODE_PRIVATE) }
-    val timingPreferences = remember(context) { context.getSharedPreferences("smart_recorder_timing", android.content.Context.MODE_PRIVATE) }
-    val displayMetrics = remember(context) {
-        android.util.DisplayMetrics().also { metrics ->
-            @Suppress("DEPRECATION")
-            (context.getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager).defaultDisplay.getRealMetrics(metrics)
-        }
+    val activity = context as? android.app.Activity
+    val prefs = remember(context) { context.getSharedPreferences("smart_recorder_crop", 0) }
+    val timing = remember(context) { context.getSharedPreferences("smart_recorder_timing", 0) }
+    val metrics = remember(context) { android.util.DisplayMetrics().also { m -> @Suppress("DEPRECATION") (context.getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager).defaultDisplay.getRealMetrics(m) } }
+    val sw = metrics.widthPixels.toFloat().coerceAtLeast(1f); val sh = metrics.heightPixels.toFloat().coerceAtLeast(1f)
+    var bounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    var url by remember { mutableStateOf("") }; var live by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }; var running by remember { mutableStateOf(false) }; var preparing by remember { mutableStateOf(false) }
+    var mainGuide by remember { mutableStateOf(true) }; var webcamGuide by remember { mutableStateOf(true) }
+    var mainX by remember { mutableFloatStateOf(prefs.getFloat("main_x", .25f)) }; var mainY by remember { mutableFloatStateOf(prefs.getFloat("main_y", 0f)) }
+    var mainH by remember { mutableFloatStateOf(prefs.getFloat("main_height", 1f).coerceIn(.5f, 1f)) }
+    var wx by remember { mutableFloatStateOf(prefs.getFloat("webcam_x", .78f)) }; var wy by remember { mutableFloatStateOf(prefs.getFloat("webcam_y", .64f)) }
+    var ww by remember { mutableFloatStateOf(prefs.getFloat("webcam_width", .174f).coerceIn(.04f, .8f)) }; var wh by remember { mutableFloatStateOf(prefs.getFloat("webcam_height", .31f).coerceIn(.04f, .8f)) }
+    var minutes by remember { mutableFloatStateOf(timing.getInt("recording_minutes", 1).toFloat().coerceIn(1f, 240f)) }
+    val player = remember(context) { YouTubePlayerContainer(context) }; DisposableEffect(player) { onDispose { player.release() } }
+    DisposableEffect(live, activity) {
+        @Suppress("DEPRECATION")
+        activity?.window?.decorView?.systemUiVisibility = if (live) (View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION) else View.SYSTEM_UI_FLAG_VISIBLE
+        onDispose { @Suppress("DEPRECATION") activity?.window?.decorView?.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE }
     }
-    val screenWidth = displayMetrics.widthPixels.toFloat().coerceAtLeast(1f)
-    val screenHeight = displayMetrics.heightPixels.toFloat().coerceAtLeast(1f)
-    var previewBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
-    var webcamWidth by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("webcam_width", 0.174375f).coerceIn(0.04f, 0.8f)) }
-    var webcamHeight by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("webcam_height", 0.31f).coerceIn(0.04f, 0.8f)) }
-    var recordingMinutes by remember(timingPreferences) { mutableFloatStateOf(timingPreferences.getInt("recording_minutes", 10).toFloat().coerceIn(1f, 240f)) }
-    var mainHeight by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("main_height", 1f).coerceIn(0.5f, 1f)) }
-    var mainX by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("main_x", 0.25f).coerceIn(0f, 0.9f)) }
-    var mainY by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("main_y", 0f).coerceIn(0f, 0.9f)) }
-    var webcamX by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("webcam_x", 0.78f).coerceIn(0f, 1f - webcamWidth)) }
-    var webcamY by remember(cropPreferences) { mutableFloatStateOf(cropPreferences.getFloat("webcam_y", 0.64f).coerceIn(0f, 1f - webcamHeight)) }
-    var captureRunning by remember { mutableStateOf(false) }
-    val playerContainer = remember(context) { YouTubePlayerContainer(context) }
-    DisposableEffect(playerContainer) { onDispose { playerContainer.release() } }
-
-    DisposableEffect(context) {
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: android.content.Context?, intent: Intent?) {
-                if (intent?.action == ScreenCaptureService.ACTION_CAPTURE_FINISHED) {
-                    captureRunning = false
-                    playerContainer.seekToLive()
-                }
-            }
-        }
-        ContextCompat.registerReceiver(context, receiver, IntentFilter(ScreenCaptureService.ACTION_CAPTURE_FINISHED), ContextCompat.RECEIVER_NOT_EXPORTED)
-        onDispose { context.unregisterReceiver(receiver) }
+    DisposableEffect(context) { val receiver = object : BroadcastReceiver() { override fun onReceive(c: android.content.Context?, i: Intent?) { if (i?.action == ScreenCaptureService.ACTION_CAPTURE_FINISHED) { running = false; preparing = false; expanded = false; player.seekToLive() } } }; ContextCompat.registerReceiver(context, receiver, IntentFilter(ScreenCaptureService.ACTION_CAPTURE_FINISHED), ContextCompat.RECEIVER_NOT_EXPORTED); onDispose { context.unregisterReceiver(receiver) } }
+    val manager = remember { context.getSystemService(android.content.Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager }
+    val captureLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val data = result.data; val r = bounds
+        if (result.resultCode == android.app.Activity.RESULT_OK && data != null && r.width > 0f && r.height > 0f) {
+            val aspect = r.width / r.height; val mw = (mainH * 9f / 16f / aspect).coerceIn(.01f, 1f)
+            fun sx(x: Float, w: Float) = ((r.left + x * r.width) / sw).coerceIn(0f, 1f - w * r.width / sw)
+            fun sy(y: Float, h: Float) = ((r.top + y * r.height) / sh).coerceIn(0f, 1f - h * r.height / sh)
+            val intent = Intent(context, ScreenCaptureService::class.java).apply { action = ScreenCaptureService.ACTION_START; putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode); putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data); putExtra(ScreenCaptureService.EXTRA_MAIN_X, sx(mainX,mw)); putExtra(ScreenCaptureService.EXTRA_MAIN_Y, sy(mainY,mainH)); putExtra(ScreenCaptureService.EXTRA_MAIN_WIDTH, (mw*r.width/sw).coerceIn(.01f,1f)); putExtra(ScreenCaptureService.EXTRA_MAIN_HEIGHT, (mainH*r.height/sh).coerceIn(.01f,1f)); putExtra(ScreenCaptureService.EXTRA_CROP_X, sx(wx,ww)); putExtra(ScreenCaptureService.EXTRA_CROP_Y, sy(wy,wh)); putExtra(ScreenCaptureService.EXTRA_CROP_WIDTH, (ww*r.width/sw).coerceIn(.01f,1f)); putExtra(ScreenCaptureService.EXTRA_CROP_HEIGHT, (wh*r.height/sh).coerceIn(.01f,1f)); putExtra(ScreenCaptureService.EXTRA_DURATION_MS, minutes.toLong()*60_000L) }
+            player.seekBack(minutes.toInt()*60) { ok -> if (!ok) { preparing = false; Toast.makeText(context, "Esta live não disponibiliza esse tempo de DVR para voltar.", Toast.LENGTH_LONG).show() } else { running = true; preparing = false; expanded = false; mainGuide = false; webcamGuide = false; activity?.window?.decorView?.postDelayed({ context.startForegroundService(intent) }, 800L) ?: context.startForegroundService(intent) } }
+        } else { preparing = false; Toast.makeText(context, "Permissão de captura não concedida.", Toast.LENGTH_SHORT).show() }
     }
-
-    val projectionManager = remember { context.getSystemService(android.content.Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager }
-    val capturePermission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val data = result.data
-        val bounds = previewBounds
-        if (result.resultCode == android.app.Activity.RESULT_OK && data != null && bounds.width > 0f && bounds.height > 0f) {
-            val previewAspect = bounds.width / bounds.height
-            val mainWidth = (mainHeight * (9f / 16f) / previewAspect).coerceIn(0.01f, 1f)
-            fun screenX(x: Float, width: Float) = ((bounds.left + x * bounds.width) / screenWidth).coerceIn(0f, 1f - width * bounds.width / screenWidth)
-            fun screenY(y: Float, height: Float) = ((bounds.top + y * bounds.height) / screenHeight).coerceIn(0f, 1f - height * bounds.height / screenHeight)
-            val captureIntent = Intent(context, ScreenCaptureService::class.java).apply {
-                action = ScreenCaptureService.ACTION_START
-                putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
-                putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data)
-                putExtra(ScreenCaptureService.EXTRA_MAIN_X, screenX(mainX, mainWidth))
-                putExtra(ScreenCaptureService.EXTRA_MAIN_Y, screenY(mainY, mainHeight))
-                putExtra(ScreenCaptureService.EXTRA_MAIN_WIDTH, (mainWidth * bounds.width / screenWidth).coerceIn(0.01f, 1f))
-                putExtra(ScreenCaptureService.EXTRA_MAIN_HEIGHT, (mainHeight * bounds.height / screenHeight).coerceIn(0.01f, 1f))
-                putExtra(ScreenCaptureService.EXTRA_CROP_X, screenX(webcamX, webcamWidth))
-                putExtra(ScreenCaptureService.EXTRA_CROP_Y, screenY(webcamY, webcamHeight))
-                putExtra(ScreenCaptureService.EXTRA_CROP_WIDTH, (webcamWidth * bounds.width / screenWidth).coerceIn(0.01f, 1f))
-                putExtra(ScreenCaptureService.EXTRA_CROP_HEIGHT, (webcamHeight * bounds.height / screenHeight).coerceIn(0.01f, 1f))
-                putExtra(ScreenCaptureService.EXTRA_DURATION_MS, recordingMinutes.toLong() * 60_000L)
-            }
-            playerContainer.seekBack(recordingMinutes.toInt() * 60) { seekReady ->
-                if (!seekReady) {
-                    Toast.makeText(context, "Esta live não oferece ${recordingMinutes.toInt()} minuto(s) disponíveis para voltar. Verifique se o DVR está ativado.", Toast.LENGTH_LONG).show()
-                    return@seekBack
-                }
-                captureRunning = true
-                val decor = (context as? android.app.Activity)?.window?.decorView
-                if (decor != null) decor.postDelayed({ context.startForegroundService(captureIntent) }, 700L)
-                else context.startForegroundService(captureIntent)
-            }
+    val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) captureLauncher.launch(manager.createScreenCaptureIntent()) else { preparing = false; Toast.makeText(context, "Permissão de microfone necessária. Áudio interno do YouTube ainda não é gravado.", Toast.LENGTH_LONG).show() } }
+    val noticeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { micLauncher.launch(Manifest.permission.RECORD_AUDIO) }
+    if (!live) {
+        Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Page, Color(0xFF101D31)))).padding(22.dp), verticalArrangement = Arrangement.Center) {
+            Text("SMART RECORDER", color = Accent, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
+            Spacer(Modifier.height(14.dp)); Text("Grave sua live do seu jeito.", color = TextMain, fontSize = 29.sp, fontWeight = FontWeight.ExtraBold)
+            Spacer(Modifier.height(8.dp)); Text("Cole o link do YouTube. A live será aberta dentro do aplicativo.", color = TextMuted, fontSize = 14.sp)
+            Spacer(Modifier.height(22.dp)); androidx.compose.material3.OutlinedTextField(value = url, onValueChange = { url = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Link da live do YouTube") }, placeholder = { Text("youtube.com/live/...") }, singleLine = true, shape = RoundedCornerShape(14.dp))
+            Spacer(Modifier.height(12.dp)); Button(onClick = { val valid = normalizeYoutubeLiveUrl(url); if (valid == null) Toast.makeText(context, "Link inválido. Use youtube.com/live, youtube.com/watch ou youtu.be.", Toast.LENGTH_LONG).show() else { player.loadYoutubeUrl(valid); live = true } }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Page)) { Text("VER LIVE", fontWeight = FontWeight.ExtraBold) }
+            Spacer(Modifier.height(18.dp)); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedButton(onClick = onOpenVideos, modifier = Modifier.weight(1f)) { Text("MEUS VÍDEOS") }; OutlinedButton(onClick = onOpenSettings, modifier = Modifier.weight(1f)) { Text("AJUSTES") } }
         }
-    }
-    val microphonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        capturePermission.launch(projectionManager.createScreenCaptureIntent())
-    }
-    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
-    }
-
-    Column(Modifier.fillMaxSize().background(Page)) {
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            PlayerCropSelector(
-                playerContainer, mainX, mainY, mainHeight, webcamX, webcamY, webcamWidth, webcamHeight,
-                showGuides = !captureRunning,
-                onBoundsChanged = { previewBounds = it },
-                onMainChange = { x, y ->
-                    mainX = x; mainY = y
-                    cropPreferences.edit().putFloat("main_x", x).putFloat("main_y", y).apply()
-                },
-                onWebcamChange = { x, y, w, h ->
-                    webcamX = x; webcamY = y; webcamWidth = w; webcamHeight = h
-                    cropPreferences.edit().putFloat("webcam_x", x).putFloat("webcam_y", y).putFloat("webcam_width", w).putFloat("webcam_height", h).apply()
-                }
-            )
-            if (!captureRunning) {
-                Row(Modifier.align(Alignment.TopStart).padding(9.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xCC080D18)).padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("SMART RECORDER", color = TextMain, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
-                    Spacer(Modifier.width(8.dp))
-                    Text("LIVE DO YOUTUBE", color = Accent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                }
+    } else Box(Modifier.fillMaxSize().background(Color.Black)) {
+        PlayerCropSelector(player, mainX, mainY, mainH, wx, wy, ww, wh, !running && !preparing && (mainGuide || webcamGuide), { bounds = it },
+            { x,y -> mainX=x; mainY=y; prefs.edit().putFloat("main_x",x).putFloat("main_y",y).apply() },
+            { x,y,w,h -> wx=x; wy=y; ww=w; wh=h; prefs.edit().putFloat("webcam_x",x).putFloat("webcam_y",y).putFloat("webcam_width",w).putFloat("webcam_height",h).apply() })
+        if (!running && !preparing) {
+            TextButton(onClick = { live = false; expanded = false }, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) { Text("VOLTAR", color = TextMain) }
+            if (expanded) Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp, start = 12.dp, end = 12.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xEE101A2A)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("CONTROLES", color = Accent, fontWeight = FontWeight.ExtraBold)
+                Row(verticalAlignment = Alignment.CenterVertically) { Text("DURAÇÃO", color = TextMain, fontSize = 10.sp); Slider(minutes, { minutes=it; timing.edit().putInt("recording_minutes",it.toInt()).apply() }, valueRange=1f..240f, steps=238, modifier=Modifier.weight(1f)); Text("${minutes.toInt()} min", color=Accent) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { androidx.compose.material3.FilterChip(mainGuide, { mainGuide=!mainGuide }, label={ Text("RECORTE AZUL") }); androidx.compose.material3.FilterChip(webcamGuide, { webcamGuide=!webcamGuide }, label={ Text("WEBCAM VERDE") }) }
+                Text("Altura vídeo: ${(mainH*100).toInt()}%", color=TextMuted, fontSize=10.sp); Slider(mainH,{ mainH=it; prefs.edit().putFloat("main_height",it).apply() },valueRange=.5f..1f)
+                Text("Largura webcam: ${(ww*100).toInt()}%",color=TextMuted,fontSize=10.sp); Slider(ww,{ ww=it.coerceIn(.04f,.8f); wx=wx.coerceIn(0f,1f-ww); prefs.edit().putFloat("webcam_width",ww).putFloat("webcam_x",wx).apply() },valueRange=.04f.. .8f)
+                Text("Altura webcam: ${(wh*100).toInt()}%",color=TextMuted,fontSize=10.sp); Slider(wh,{ wh=it.coerceIn(.04f,.8f); wy=wy.coerceIn(0f,1f-wh); prefs.edit().putFloat("webcam_height",wh).putFloat("webcam_y",wy).apply() },valueRange=.04f.. .8f)
+                Button(onClick = { preparing=true; if (Build.VERSION.SDK_INT>=33 && ContextCompat.checkSelfPermission(context,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) noticeLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) else micLauncher.launch(Manifest.permission.RECORD_AUDIO) }, modifier=Modifier.fillMaxWidth(), colors=ButtonDefaults.buttonColors(containerColor=Accent,contentColor=Page)) { Text("INICIAR GRAVAÇÃO",fontWeight=FontWeight.ExtraBold) }
             }
+            Button(onClick={ expanded=!expanded },modifier=Modifier.align(Alignment.BottomCenter).padding(bottom=14.dp).size(62.dp),shape=CircleShape,colors=ButtonDefaults.buttonColors(containerColor=Accent,contentColor=Page),contentPadding=androidx.compose.foundation.layout.PaddingValues(0.dp)) { Text(if(expanded) "×" else "●",fontSize=27.sp,fontWeight=FontWeight.Black) }
         }
-        Column(Modifier.fillMaxWidth().height(118.dp).background(Panel).padding(horizontal = 12.dp, vertical = 7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (captureRunning) {
-                Text("Gravação em andamento • encerramento automático em ${recordingMinutes.toInt()} min", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                Button(onClick = {
-                    context.startService(Intent(context, ScreenCaptureService::class.java).setAction(ScreenCaptureService.ACTION_STOP))
-                    captureRunning = false
-                }, modifier = Modifier.fillMaxWidth().height(38.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE35D6A), contentColor = Page)) {
-                    Text("PARAR GRAVAÇÃO", fontWeight = FontWeight.Bold)
-                }
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("DURAÇÃO", color = TextMain, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.width(8.dp))
-                    Slider(value = recordingMinutes, onValueChange = {
-                        recordingMinutes = it
-                        timingPreferences.edit().putInt("recording_minutes", it.toInt()).apply()
-                    }, valueRange = 1f..240f, steps = 238, modifier = Modifier.weight(1f))
-                    Text("${recordingMinutes.toInt()} min", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("RECORTE AZUL", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    Slider(value = mainHeight, onValueChange = {
-                        mainHeight = it.coerceIn(0.5f, 1f)
-                        cropPreferences.edit().putFloat("main_height", mainHeight).apply()
-                    }, valueRange = 0.5f..1f, modifier = Modifier.weight(1f))
-                    Text("${(mainHeight * 100).toInt()}%", color = Color(0xFF4D9DFF), fontSize = 10.sp)
-                }
-                Button(onClick = {
-                    if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
-                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    else microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
-                }, modifier = Modifier.fillMaxWidth().height(42.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Page)) {
-                    Text("INICIAR GRAVAÇÃO", fontWeight = FontWeight.ExtraBold)
-                }
-                Text("Pesquise e assista à live na área acima. A gravação só começa ao tocar no botão.", color = TextMuted, fontSize = 9.sp)
-            }
-        }
+        if (preparing) Text("Preparando gravação…",color=TextMain,modifier=Modifier.align(Alignment.BottomCenter).padding(22.dp).background(Color(0xCC080D18),RoundedCornerShape(10.dp)).padding(12.dp))
+        if (running) Row(Modifier.align(Alignment.BottomCenter).padding(14.dp).clip(CircleShape).background(Color(0xDD080D18)).padding(horizontal=14.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically) { Text("● GRAVANDO",color=Color(0xFFFF6474),fontWeight=FontWeight.ExtraBold); Spacer(Modifier.width(10.dp)); Button(onClick={ context.startService(Intent(context,ScreenCaptureService::class.java).setAction(ScreenCaptureService.ACTION_STOP)) },colors=ButtonDefaults.buttonColors(containerColor=Color(0xFFE35D6A),contentColor=Page)) { Text("PARAR") } }
     }
 }
+
+private fun normalizeYoutubeLiveUrl(raw: String): String? = try {
+    val input=raw.trim(); if(input.isBlank() || input.length>2048) return null
+    val uri=Uri.parse(if(input.startsWith("http://")||input.startsWith("https://")) input else "https://$input")
+    val host=(uri.host ?: return null).lowercase(Locale.ROOT)
+    if(host !in setOf("youtube.com","www.youtube.com","m.youtube.com","youtu.be","www.youtu.be")) return null
+    val path=uri.path.orEmpty(); val valid=if(host.contains("youtu.be")) path.trim('/').isNotEmpty() else path.startsWith("/live/") || path=="/watch"
+    if(!valid) return null
+    Uri.Builder().scheme("https").authority(if(host.contains("youtu.be")) "youtu.be" else "m.youtube.com").path(path).encodedQuery(uri.encodedQuery).build().toString()
+} catch (_: Exception) { null }
 
 @Composable
 private fun PlayerCropSelector(
@@ -349,6 +273,8 @@ private fun PlayerCropSelector(
 
 private class YouTubePlayerContainer(context: android.content.Context) : android.widget.FrameLayout(context) {
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    fun loadYoutubeUrl(url: String) { webView.loadUrl(url) }
 
     /** Rewinds only when the YouTube player exposes a seekable DVR window. */
     fun seekBack(seconds: Int, callback: (Boolean) -> Unit) {
@@ -433,7 +359,7 @@ private class YouTubePlayerContainer(context: android.content.Context) : android
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT
         ))
-        webView.loadUrl("https://m.youtube.com")
+        webView.loadUrl("about:blank")
     }
 
     fun release() {
