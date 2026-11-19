@@ -10,6 +10,7 @@ import android.media.AudioPlaybackCaptureConfiguration
 import android.media.AudioRecord
 import android.media.projection.MediaProjection
 import android.os.Build
+import androidx.annotation.RequiresApi
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
@@ -20,6 +21,7 @@ import kotlin.math.abs
  * It writes temporary PCM WAV audio; the service later muxes it with the cropped video.
  */
 @SuppressLint("MissingPermission")
+@RequiresApi(Build.VERSION_CODES.Q)
 internal class PlaybackAudioRecorder(
     context: Context,
     private val projection: MediaProjection,
