@@ -193,7 +193,7 @@ private fun CaptureScreen() {
             }
             playerContainer.seekBack(recordingMinutes.toInt() * 60) { seekReady ->
                 if (!seekReady) {
-                    Toast.makeText(context, "Esta live não oferece 1 minuto disponível para voltar. Verifique se o DVR está ativado.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Esta live não oferece ${recordingMinutes.toInt()} minuto(s) disponíveis para voltar. Verifique se o DVR está ativado.", Toast.LENGTH_LONG).show()
                     return@seekBack
                 }
                 captureRunning = true
@@ -213,8 +213,8 @@ private fun CaptureScreen() {
     Column(Modifier.fillMaxSize().background(Page)) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             PlayerCropSelector(
-                mainX, mainY, mainHeight, webcamX, webcamY, webcamWidth, webcamHeight,
                 playerContainer = playerContainer,
+                mainX, mainY, mainHeight, webcamX, webcamY, webcamWidth, webcamHeight,
                 showGuides = !captureRunning,
                 onBoundsChanged = { previewBounds = it },
                 onMainChange = { x, y ->
