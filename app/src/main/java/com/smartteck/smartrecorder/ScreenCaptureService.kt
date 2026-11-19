@@ -474,7 +474,9 @@ class ScreenCaptureService : Service() {
         virtualDisplay = null
         try { dualRecorder?.release() } catch (_: Exception) {}
         dualRecorder = null
-        try { playbackAudioRecorder?.release() } catch (_: Exception) {}
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try { playbackAudioRecorder?.release() } catch (_: Exception) {}
+        }
         playbackAudioRecorder = null
         if (stopProjection) try { projection?.stop() } catch (_: Exception) {}
         projection = null
