@@ -187,15 +187,20 @@ private fun CaptureScreen(onOpenVideos: () -> Unit, onOpenSettings: () -> Unit) 
     }
 }
 
-private fun normalizeYoutubeLiveUrl(raw: String): String? = try {
-    val input=raw.trim(); if(input.isBlank() || input.length>2048) return null
-    val uri=Uri.parse(if(input.startsWith("http://")||input.startsWith("https://")) input else "https://$input")
-    val host=(uri.host ?: return null).lowercase(Locale.ROOT)
-    if(host !in setOf("youtube.com","www.youtube.com","m.youtube.com","youtu.be","www.youtu.be")) return null
-    val path=uri.path.orEmpty(); val valid=if(host.contains("youtu.be")) path.trim('/').isNotEmpty() else path.startsWith("/live/") || path=="/watch"
-    if(!valid) return null
-    Uri.Builder().scheme("https").authority(if(host.contains("youtu.be")) "youtu.be" else "m.youtube.com").path(path).encodedQuery(uri.encodedQuery).build().toString()
-} catch (_: Exception) { null }
+private fun normalizeYoutubeLiveUrl(raw: String): String? {
+    return try {
+        val input = raw.trim()
+        if (input.isBlank() || input.length > 2048) return null
+        val uri = Uri.parse(if (input.startsWith("http://") || input.startsWith("https://")) input else "https://$input")
+        val host = (uri.host ?: return null).lowercase(Locale.ROOT)
+        if (host !in setOf("youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "www.youtu.be")) return null
+        val path = uri.path.orEmpty()
+        val valid = if (host.contains("youtu.be")) path.trim('/').isNotEmpty() else path.startsWith("/live/") || path == "/watch"
+        if (!valid) return null
+        Uri.Builder().scheme("https").authority(if (host.contains("youtu.be")) "youtu.be" else "m.youtube.com")
+            .path(path).encodedQuery(uri.encodedQuery).build().toString()
+    } catch (_: Exception) { null }
+}
 
 @Composable
 private fun PlayerCropSelector(
