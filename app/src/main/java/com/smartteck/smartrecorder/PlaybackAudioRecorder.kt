@@ -82,10 +82,12 @@ internal class PlaybackAudioRecorder(
                     if (count > 0) {
                         stream.write(buffer, 0, count)
                         bytesWritten += count
-                    } else if (count < 0 && count != AudioRecord.ERROR_DEAD_OBJECT) {
+                    } else if (count < 0) {
+                        if (!recording) break
+                        if (count == AudioRecord.ERROR_DEAD_OBJECT) {
+                            throw IllegalStateException("A captura de áudio interno foi interrompida.")
+                        }
                         throw IllegalStateException("Falha ao ler o áudio interno: $count")
-                    } else if (count == AudioRecord.ERROR_DEAD_OBJECT) {
-                        throw IllegalStateException("A captura de áudio interno foi interrompida.")
                     }
                 }
             } catch (failure: Throwable) {
@@ -104,11 +106,16 @@ internal class PlaybackAudioRecorder(
             if (audioRecord.recordingState == AudioRecord.RECORDSTATE_RECORDING) audioRecord.stop()
         } catch (_: Exception) {
         }
-        try { worker?.join(2_500L) } catch (_: InterruptedException) {
+        try { worker?.join(5_000L) } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
         }
+        val workerStillRunning = worker?.isAlive == true
         worker = null
         try { output?.flush(); output?.close() } catch (_: Exception) {}
+        if (workerStillRunning) {
+            try { audioRecord.release() } catch (_: Exception) {}
+            return false
+        }
         output = null
         try { audioRecord.release() } catch (_: Exception) {}
         if (bytesWritten > 0L) writeWavHeader(outputFile, bytesWritten)
