@@ -46,6 +46,9 @@ class ScreenCaptureService : Service() {
     private var projection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var dualRecorder: DualRegionRecorder? = null
+    private var playbackAudioRecorder: PlaybackAudioRecorder? = null
+    private var audioOutputFile: File? = null
+    private var silentMainOutputFile: File? = null
     private var mainOutputFile: File? = null
     private var webcamOutputFile: File? = null
     private var combinedOutputFile: File? = null
@@ -171,14 +174,30 @@ class ScreenCaptureService : Service() {
             mainOutputFile = File(directory, "${baseName}_9x16.mp4")
             webcamOutputFile = File(directory, "${baseName}_webcam_personalizada.mp4")
             combinedOutputFile = File(directory, "${baseName}_combined.mp4")
+            audioOutputFile = File(directory, "${baseName}_internal_audio.wav")
+            silentMainOutputFile = File(directory, "${baseName}_video_only.mp4")
 
-            val hasMic = checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+            val hasRecordAudioPermission = checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
                 android.content.pm.PackageManager.PERMISSION_GRANTED
+            // Android 10+ allows playback capture only when the source player permits it.
+            // If the platform rejects capture, retain the existing microphone fallback.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && hasRecordAudioPermission) {
+                try {
+                    playbackAudioRecorder = PlaybackAudioRecorder(projection!!, audioOutputFile!!).also { it.start() }
+                } catch (_: Exception) {
+                    try { playbackAudioRecorder?.release() } catch (_: Exception) {}
+                    playbackAudioRecorder = null
+                    audioOutputFile?.delete()
+                }
+            }
+            val internalAudioActive = playbackAudioRecorder != null
+            val mainRecordingFile = if (internalAudioActive) silentMainOutputFile!! else mainOutputFile!!
+            val recordMicrophone = !internalAudioActive && hasRecordAudioPermission
             val pipeline = DualRegionRecorder(
                 this, captureWidth, captureHeight,
                 mainX, mainY, mainWidth, mainHeight,
                 webcamX, webcamY, webcamWidth, webcamHeight,
-                mainOutputFile!!, webcamOutputFile!!, hasMic
+                mainRecordingFile, webcamOutputFile!!, recordMicrophone
             )
             dualRecorder = pipeline
             pipeline.prepare()
@@ -202,6 +221,8 @@ class ScreenCaptureService : Service() {
         } catch (failure: Exception) {
             releaseCaptureResources(stopProjection = true)
             mainOutputFile?.delete()
+            silentMainOutputFile?.delete()
+            audioOutputFile?.delete()
             webcamOutputFile?.delete()
             stopForeground(STOP_FOREGROUND_REMOVE)
             showResultNotification("Falha ao iniciar a captura dupla: ${failure.message ?: "verifique as permissões e tente novamente."}")
@@ -270,6 +291,9 @@ class ScreenCaptureService : Service() {
             captureStopFailed = true
         }
         dualRecorder = null
+        val playbackAudio = playbackAudioRecorder
+        playbackAudioRecorder = null
+        val hasInternalAudio = try { playbackAudio?.stop() == true } catch (_: Exception) { false }
         releaseRecordingWakeLock()
         if (projectionAlreadyStopped) projection = null
         try { projection?.stop() } catch (_: Exception) {}
@@ -281,14 +305,87 @@ class ScreenCaptureService : Service() {
 
         val main = mainOutputFile
         val webcam = webcamOutputFile
-        if (main == null || webcam == null || !main.exists() || !webcam.exists() ||
-            main.length() == 0L || webcam.length() == 0L
-        ) {
+        val silentMain = silentMainOutputFile
+        if (main == null || webcam == null || !webcam.exists() || webcam.length() == 0L) {
+            finishService(error = true)
+            return
+        }
+        if (hasInternalAudio && silentMain != null && silentMain.exists() && silentMain.length() > 0L) {
+            startMainAudioMux(silentMain, audioOutputFile!!, main)
+            return
+        }
+        if (silentMain != null && silentMain.exists() && silentMain.length() > 0L) {
+            silentMain.copyTo(main, overwrite = true)
+            silentMain.delete()
+        }
+        audioOutputFile?.delete()
+        if (!main.exists() || main.length() == 0L) {
             finishService(error = true)
             return
         }
         updateNotice("Combinando vídeo vertical e webcam...")
         startCombinedExport(main)
+    }
+
+
+    /**
+     * Muxes the captured system playback WAV with the silent cropped video.
+     * AudioPlaybackCapture is subject to Android's source-app capture policy;
+     * it is never used to bypass protected playback.
+     */
+    private fun startMainAudioMux(videoFile: File, audioFile: File, outputFile: File) {
+        currentExportOutput = outputFile
+        updateNotice("Sincronizando áudio interno com o vídeo vertical...")
+        try {
+            val videoItem = EditedMediaItem.Builder(MediaItem.fromUri(Uri.fromFile(videoFile)))
+                .setRemoveAudio(true)
+                .build()
+            val audioItem = EditedMediaItem.Builder(MediaItem.fromUri(Uri.fromFile(audioFile)))
+                .setRemoveVideo(true)
+                .build()
+            val videoSequence = EditedMediaItemSequence.Builder(videoItem).build()
+            val audioSequence = EditedMediaItemSequence.Builder(audioItem).build()
+            exportTransformer = Transformer.Builder(this)
+                .addListener(object : Transformer.Listener {
+                    override fun onCompleted(composition: Composition, exportResult: ExportResult) {
+                        currentExportOutput = null
+                        videoFile.delete()
+                        audioFile.delete()
+                        updateNotice("Áudio sincronizado. Combinando webcam...")
+                        startCombinedExport(outputFile)
+                    }
+
+                    override fun onError(
+                        composition: Composition,
+                        exportResult: ExportResult,
+                        exportException: ExportException
+                    ) {
+                        currentExportOutput = null
+                        outputFile.delete()
+                        // Preserve the cropped video if audio muxing is unsupported on this device.
+                        try {
+                            videoFile.copyTo(outputFile, overwrite = true)
+                            videoFile.delete()
+                            audioFile.delete()
+                            startCombinedExport(outputFile)
+                        } catch (_: Exception) {
+                            finishService(error = true)
+                        }
+                    }
+                }).build()
+            exportTransformer?.start(Composition.Builder(videoSequence, audioSequence).build(), outputFile.absolutePath)
+        } catch (_: Exception) {
+            currentExportOutput = null
+            outputFile.delete()
+            try {
+                videoFile.copyTo(outputFile, overwrite = true)
+                videoFile.delete()
+                audioFile.delete()
+                startCombinedExport(outputFile)
+            } catch (_: Exception) {
+                finishService(error = true)
+            }
+        }
     }
 
     private fun startCombinedExport(mainFile: File) {
@@ -375,6 +472,8 @@ class ScreenCaptureService : Service() {
         virtualDisplay = null
         try { dualRecorder?.release() } catch (_: Exception) {}
         dualRecorder = null
+        try { playbackAudioRecorder?.release() } catch (_: Exception) {}
+        playbackAudioRecorder = null
         if (stopProjection) try { projection?.stop() } catch (_: Exception) {}
         projection = null
     }
