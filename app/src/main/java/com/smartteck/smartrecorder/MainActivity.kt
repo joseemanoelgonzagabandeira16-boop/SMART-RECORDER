@@ -166,7 +166,7 @@ private fun CaptureScreen(onOpenVideos: () -> Unit, onOpenSettings: () -> Unit) 
             Spacer(Modifier.height(18.dp)); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedButton(onClick = onOpenVideos, modifier = Modifier.weight(1f)) { Text("MEUS VÍDEOS") }; OutlinedButton(onClick = onOpenSettings, modifier = Modifier.weight(1f)) { Text("AJUSTES") } }
         }
     } else Box(Modifier.fillMaxSize().background(Color.Black)) {
-        PlayerCropSelector(player, mainX, mainY, mainH, wx, wy, ww, wh, !running && !preparing && (mainGuide || webcamGuide), { bounds = it },
+        PlayerCropSelector(player, mainX, mainY, mainH, wx, wy, ww, wh, !running && !preparing && mainGuide, !running && !preparing && webcamGuide, { bounds = it },
             { x,y -> mainX=x; mainY=y; prefs.edit().putFloat("main_x",x).putFloat("main_y",y).apply() },
             { x,y,w,h -> wx=x; wy=y; ww=w; wh=h; prefs.edit().putFloat("webcam_x",x).putFloat("webcam_y",y).putFloat("webcam_width",w).putFloat("webcam_height",h).apply() })
         if (!running && !preparing) {
@@ -207,7 +207,7 @@ private fun PlayerCropSelector(
     playerContainer: YouTubePlayerContainer,
     mainX: Float, mainY: Float, mainHeight: Float,
     webcamX: Float, webcamY: Float, webcamWidth: Float, webcamHeight: Float,
-    showGuides: Boolean,
+    showMainGuide: Boolean, showWebcamGuide: Boolean,
     onBoundsChanged: (androidx.compose.ui.geometry.Rect) -> Unit,
     onMainChange: (Float, Float) -> Unit,
     onWebcamChange: (Float, Float, Float, Float) -> Unit
@@ -229,12 +229,12 @@ private fun PlayerCropSelector(
             }
     ) {
         AndroidView(factory = { playerContainer }, modifier = Modifier.fillMaxSize())
-        if (showGuides) {
+        if (showMainGuide || showWebcamGuide) {
             val pw = with(density) { maxWidth.toPx() }
             val ph = with(density) { maxHeight.toPx() }
             val aspect = (pw / ph).coerceAtLeast(0.1f)
             val mainWidth = mainHeight * (9f / 16f) / aspect
-            Box(
+            if (showMainGuide) Box(
                 Modifier.offset(x = maxWidth * mainX, y = maxHeight * mainY).width(maxWidth * mainWidth).height(maxHeight * mainHeight)
                     .border(2.dp, Color(0xFF4D9DFF), RoundedCornerShape(7.dp)).background(Color(0x222E82E6))
                     .pointerInput(pw, ph) {
@@ -248,7 +248,7 @@ private fun PlayerCropSelector(
                 Text("VÍDEO 9:16", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(5.dp).background(Color(0xCC174C91), RoundedCornerShape(4.dp)).padding(3.dp))
             }
-            Box(
+            if (showWebcamGuide) Box(
                 Modifier.offset(x = maxWidth * webcamX, y = maxHeight * webcamY).width(maxWidth * webcamWidth).height(maxHeight * webcamHeight)
                     .border(2.dp, Accent, RoundedCornerShape(7.dp)).background(Color(0x553ED8B5))
                     .pointerInput(pw, ph) {
@@ -270,7 +270,7 @@ private fun PlayerCropSelector(
                         }
                     })
             }
-            Text("AZUL: VÍDEO 9:16 • VERDE: WEBCAM • ARRASTE PARA AJUSTAR", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold,
+            if (showMainGuide || showWebcamGuide) Text("AZUL: VÍDEO 9:16 • VERDE: WEBCAM • ARRASTE PARA AJUSTAR", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(7.dp).background(Color(0xCC080D18), RoundedCornerShape(5.dp)).padding(5.dp))
         }
     }
