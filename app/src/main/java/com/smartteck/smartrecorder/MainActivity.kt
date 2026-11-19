@@ -213,8 +213,7 @@ private fun CaptureScreen() {
     Column(Modifier.fillMaxSize().background(Page)) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             PlayerCropSelector(
-                playerContainer = playerContainer,
-                mainX, mainY, mainHeight, webcamX, webcamY, webcamWidth, webcamHeight,
+                playerContainer, mainX, mainY, mainHeight, webcamX, webcamY, webcamWidth, webcamHeight,
                 showGuides = !captureRunning,
                 onBoundsChanged = { previewBounds = it },
                 onMainChange = { x, y ->
