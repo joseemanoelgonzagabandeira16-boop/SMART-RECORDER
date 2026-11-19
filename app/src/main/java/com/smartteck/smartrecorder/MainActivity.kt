@@ -161,7 +161,7 @@ private fun CaptureScreen(onOpenVideos: () -> Unit, onOpenSettings: () -> Unit) 
             player.seekBack(minutes.toInt()*60) { ok -> if (!ok) { preparing = false; Toast.makeText(context, "Esta live não disponibiliza esse tempo de DVR para voltar.", Toast.LENGTH_LONG).show() } else { running = true; preparing = false; expanded = false; mainGuide = false; webcamGuide = false; activity?.window?.decorView?.postDelayed({ context.startForegroundService(intent) }, 800L) ?: context.startForegroundService(intent) } }
         } else { preparing = false; Toast.makeText(context, "Permissão de captura não concedida.", Toast.LENGTH_SHORT).show() }
     }
-    val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) captureLauncher.launch(manager.createScreenCaptureIntent()) else { preparing = false; Toast.makeText(context, "Permissão de microfone necessária. Áudio interno do YouTube ainda não é gravado.", Toast.LENGTH_LONG).show() } }
+    val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) captureLauncher.launch(manager.createScreenCaptureIntent()) else { preparing = false; Toast.makeText(context, "Permissão de áudio necessária para capturar o som da live ou usar o microfone como alternativa.", Toast.LENGTH_LONG).show() } }
     val noticeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { micLauncher.launch(Manifest.permission.RECORD_AUDIO) }
     if (!live) {
         Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Page, Color(0xFF101D31)))).padding(22.dp), verticalArrangement = Arrangement.Center) {
