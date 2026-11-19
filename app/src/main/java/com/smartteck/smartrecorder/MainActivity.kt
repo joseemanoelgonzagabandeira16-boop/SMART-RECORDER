@@ -262,7 +262,7 @@ private fun CaptureScreen() {
                             Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Accent)
                         }
                     }
-                    Text("Mantenha o aparelho na horizontal. A área de pré-visualização acompanha a proporção da tela para manter o recorte 9:16 correto. Abra a live no YouTube e autorize a captura.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
+                    Text("O SMART RECORDER abre em orientação horizontal para preparar a captura. Abra a live do YouTube em tela cheia e autorize a captura; a pré-visualização mantém o recorte 9:16.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
                     Button(onClick = {
                         val launchIntent = context.packageManager.getLaunchIntentForPackage("com.google.android.youtube")
                         if (launchIntent != null) context.startActivity(launchIntent)
