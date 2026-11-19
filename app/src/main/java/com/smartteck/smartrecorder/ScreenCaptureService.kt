@@ -293,7 +293,9 @@ class ScreenCaptureService : Service() {
         dualRecorder = null
         val playbackAudio = playbackAudioRecorder
         playbackAudioRecorder = null
-        val hasInternalAudio = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {\n            try { playbackAudio?.stop() == true } catch (_: Exception) { false }\n        } else false
+        val hasInternalAudio = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try { playbackAudio?.stop() == true } catch (_: Exception) { false }
+        } else false
         releaseRecordingWakeLock()
         if (projectionAlreadyStopped) projection = null
         try { projection?.stop() } catch (_: Exception) {}
