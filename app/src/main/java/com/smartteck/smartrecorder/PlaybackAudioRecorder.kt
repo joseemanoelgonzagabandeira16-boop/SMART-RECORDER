@@ -18,6 +18,7 @@ import java.io.RandomAccessFile
  * Captures permitted media playback through Android's official playback-capture API.
  * It writes temporary PCM WAV audio; the service later muxes it with the cropped video.
  */
+@SuppressLint("MissingPermission")
 internal class PlaybackAudioRecorder(
     context: Context,
     private val projection: MediaProjection,
