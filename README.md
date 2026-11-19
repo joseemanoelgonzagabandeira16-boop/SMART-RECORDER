@@ -10,7 +10,8 @@ Aplicativo Android nativo para transformar uma transmissão exibida no aparelho 
 - O MediaProjection entrega os quadros à memória como textura. Um pipeline OpenGL recorta a textura e envia cada região diretamente para uma superfície de codificação independente.
 - Não é criado nem salvo um arquivo de vídeo da tela inteira.
 - O app gera três arquivos MP4: vídeo vertical, webcam separada e composição final com webcam sobreposta.
-- O vídeo principal inclui áudio captado pelo microfone do aparelho, se a permissão for concedida. Esta versão não captura diretamente o áudio interno do YouTube.
+- O vídeo principal tenta capturar áudio interno usando a API oficial AudioPlaybackCapture do Android 10+, quando o player permite a captura. Se a API não puder ser inicializada, mantém o áudio do microfone como alternativa.
+- O áudio interno é gravado temporariamente em WAV e sincronizado/multiplexado com o vídeo vertical durante a finalização. A captura respeita as políticas de áudio do aplicativo de origem e não contorna conteúdo protegido.
 - Os arquivos ficam inicialmente na pasta privada de vídeos do aplicativo e são copiados para Filmes/SMART RECORDER em Android 10 ou superior.
 - Telas separadas para Captura, Vídeos e Ajustes.
 - Compartilhamento por FileProvider.
