@@ -192,7 +192,7 @@ class ScreenCaptureService : Service() {
             }
             val internalAudioActive = playbackAudioRecorder != null
             val mainRecordingFile = if (internalAudioActive) silentMainOutputFile!! else mainOutputFile!!
-            val recordMicrophone = !internalAudioActive && hasRecordAudioPermission
+            val recordMicrophone = hasRecordAudioPermission
             val pipeline = DualRegionRecorder(
                 this, captureWidth, captureHeight,
                 mainX, mainY, mainWidth, mainHeight,
