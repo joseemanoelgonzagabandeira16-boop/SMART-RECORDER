@@ -13,6 +13,7 @@ import android.os.Build
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
+import kotlin.math.abs
 
 /**
  * Captures permitted media playback through Android's official playback-capture API.
@@ -33,6 +34,7 @@ internal class PlaybackAudioRecorder(
     @Volatile private var recording = false
     private var worker: Thread? = null
     @Volatile private var bytesWritten = 0L
+    @Volatile private var hasSignal = false
     @Volatile private var readFailure: Throwable? = null
 
     init {
@@ -93,6 +95,16 @@ internal class PlaybackAudioRecorder(
                     if (count > 0) {
                         stream.write(buffer, 0, count)
                         bytesWritten += count
+                        var sampleIndex = 0
+                        while (sampleIndex + 1 < count) {
+                            val rawSample = (buffer[sampleIndex].toInt() and 0xFF) or
+                                (buffer[sampleIndex + 1].toInt() shl 8)
+                            if (abs(rawSample.toShort().toInt()) > 128) {
+                                hasSignal = true
+                                break
+                            }
+                            sampleIndex += 2
+                        }
                     } else if (count < 0) {
                         if (!recording) break
                         if (count == AudioRecord.ERROR_DEAD_OBJECT) {
@@ -130,7 +142,7 @@ internal class PlaybackAudioRecorder(
         output = null
         try { audioRecord.release() } catch (_: Exception) {}
         if (bytesWritten > 0L) writeWavHeader(outputFile, bytesWritten)
-        return bytesWritten > 0L && readFailure == null && outputFile.exists()
+        return bytesWritten > 0L && hasSignal && readFailure == null && outputFile.exists()
     }
 
     fun release() {
